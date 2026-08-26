@@ -55,6 +55,11 @@ impl Lexer {
                 '}' => self.tokens.push(Token::RightBrace),
                 ',' => self.tokens.push(Token::Comma),
                 ':' => self.tokens.push(Token::Colon),
+                'f' | 't' | 'n' => {
+                    let literal = self.process_literal()?;
+                    self.tokens.push(literal);
+                    continue;
+                }
                 '"' => {
                     let string_result = self.process_string();
                     self.tokens.push(Token::String(string_result));
@@ -93,5 +98,20 @@ impl Lexer {
         }
         let num: f64 = num_collection.iter().collect::<String>().parse()?;
         Ok(num)
+    }
+
+    fn process_literal(&mut self) -> Result<Token, Box<dyn std::error::Error>> {
+        if self.input[self.pos..].starts_with(&['t', 'r', 'u', 'e']) {
+            self.pos += 4;
+            Ok(Token::Bool(true))
+        } else if self.input[self.pos..].starts_with(&['f', 'a', 'l', 's', 'e']) {
+            self.pos += 5;
+            Ok(Token::Bool(false))
+        } else if self.input[self.pos..].starts_with(&['n', 'u', 'l', 'l']) {
+            self.pos += 4;
+            Ok(Token::Null)
+        } else {
+            Err("Invalid JSON literal".into())
+        }
     }
 }
