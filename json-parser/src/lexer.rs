@@ -1,4 +1,4 @@
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Token {
     LeftBrace,
     RightBrace,
@@ -113,5 +113,83 @@ impl Lexer {
         } else {
             Err("Invalid JSON literal".into())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_process_tokens_structural_chars() {
+        let input = "{}[],:";
+        let output = Lexer::new(input).process_tokens().unwrap();
+        let expected: Vec<Token> = vec![
+            Token::LeftBrace,
+            Token::RightBrace,
+            Token::LeftBracket,
+            Token::RightBracket,
+            Token::Comma,
+            Token::Colon,
+        ];
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_process_token_strings() {
+        let input: &str = "{\"key\":\"value\"}";
+        let output = Lexer::new(input).process_tokens().unwrap();
+        let expected: Vec<Token> = vec![
+            Token::LeftBrace,
+            Token::String(String::from("key")),
+            Token::Colon,
+            Token::String(String::from("value")),
+            Token::RightBrace,
+        ];
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_process_tokens_number() {
+        let input: &str = "123";
+        let output = Lexer::new(input).process_tokens().unwrap();
+        let expected: Vec<Token> = vec![Token::Number(123_f64)];
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_process_token_literals() {
+        let input: &str = "[true, false, null]";
+        let output = Lexer::new(input).process_tokens().unwrap();
+        let expected: Vec<Token> = vec![
+            Token::LeftBracket,
+            Token::Bool(true),
+            Token::Comma,
+            Token::Bool(false),
+            Token::Comma,
+            Token::Null,
+            Token::RightBracket,
+        ];
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_process_tokens_trailing_whitespace() {
+        let input = "{} ";
+        let output = Lexer::new(input).process_tokens().unwrap();
+        let expected: Vec<Token> = vec![Token::LeftBrace, Token::RightBrace];
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_process_tokens_invalid_character() {
+        let input = "!";
+        let output = Lexer::new(input).process_tokens();
+
+        assert!(output.is_err());
     }
 }
