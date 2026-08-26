@@ -59,7 +59,11 @@ impl Lexer {
                     let string_result = self.process_string();
                     self.tokens.push(Token::String(string_result));
                 }
-                '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '0' => {}
+                c if c.is_ascii_digit() => {
+                    let num = self.process_number()?;
+                    self.tokens.push(Token::Number(num));
+                    continue;
+                }
                 _ => return Err("Invalid json".into()),
             }
             self.pos += 1;
@@ -77,5 +81,17 @@ impl Lexer {
         }
 
         self.input[start_pos..self.pos].iter().collect()
+    }
+
+    fn process_number(&mut self) -> Result<f64, Box<dyn std::error::Error>> {
+        let mut num_collection: Vec<char> = Vec::new();
+        while let Some(peek_char) = self.peek()
+            && peek_char.is_ascii_digit()
+        {
+            num_collection.push(peek_char);
+            self.pos += 1;
+        }
+        let num: f64 = num_collection.iter().collect::<String>().parse()?;
+        Ok(num)
     }
 }
