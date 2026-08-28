@@ -1,0 +1,14 @@
+{
+  "key1": true,
+  "key2": false,
+  "key3": null,
+  "key4": "value",
+  "key5": 101,
+  "key-o": {},
+  "key-l": [],
+  "key-nested-object": {
+    "inner": "hello",
+    "count": 42
+  },
+  "key-nested-array": [1, 2, "three", true, null, {"a": 1}]
+}
