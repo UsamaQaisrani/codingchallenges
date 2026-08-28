@@ -3,7 +3,7 @@ use core::fmt;
 use miette::{Result, miette};
 use std::collections::HashMap;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum JsonValue {
     Null,
     Bool(bool),
@@ -154,5 +154,124 @@ impl Parser {
         }
         self.advance();
         Ok(JsonValue::Array(res_array))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::Lexer;
+
+    #[test]
+    fn test_parse_empty_object() {
+        let input: &str = "{}";
+        let expected = JsonValue::Object(HashMap::new());
+
+        let mut lexer = Lexer::new(input);
+        let tokens = lexer.process_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let output = parser.parse().unwrap();
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_parse_single_pair() {
+        let input: &str = "{\"key\":\"value\"}";
+        let mut map: HashMap<String, JsonValue> = HashMap::new();
+        map.insert(
+            String::from("key"),
+            JsonValue::String(String::from("value")),
+        );
+        let expected = JsonValue::Object(map);
+
+        let mut lexer = Lexer::new(input);
+        let tokens = lexer.process_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let output = parser.parse().unwrap();
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_parse_multiple_pairs() {
+        let input: &str = "{\"a\":\"1\", \"b\":\"2\"}";
+        let mut map: HashMap<String, JsonValue> = HashMap::new();
+        map.insert(String::from("a"), JsonValue::String(String::from("1")));
+        map.insert(String::from("b"), JsonValue::String(String::from("2")));
+        let expected = JsonValue::Object(map);
+
+        let mut lexer = Lexer::new(input);
+        let tokens = lexer.process_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let output = parser.parse().unwrap();
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_parse_all_value_types() {
+        let input: &str = "{\"s\":\"x\", \"n\":1, \"b\":true, \"z\":null}";
+        let mut map: HashMap<String, JsonValue> = HashMap::new();
+        map.insert(String::from("s"), JsonValue::String(String::from("x")));
+        map.insert(String::from("n"), JsonValue::Number(1_f64));
+        map.insert(String::from("b"), JsonValue::Bool(true));
+        map.insert(String::from("z"), JsonValue::Null);
+        let expected = JsonValue::Object(map);
+
+        let mut lexer = Lexer::new(input);
+        let tokens = lexer.process_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let output = parser.parse().unwrap();
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_parse_nested_object_and_array() {
+        let input: &str = "{\"o\":{\"inner\":1},\"a\":[1,2]}";
+
+        let mut inner_map: HashMap<String, JsonValue> = HashMap::new();
+        inner_map.insert(String::from("inner"), JsonValue::Number(1.0));
+
+        let mut map: HashMap<String, JsonValue> = HashMap::new();
+        map.insert(String::from("o"), JsonValue::Object(inner_map));
+        map.insert(
+            String::from("a"),
+            JsonValue::Array(vec![JsonValue::Number(1.0), JsonValue::Number(2.0)]),
+        );
+        let expected = JsonValue::Object(map);
+
+        let mut lexer = Lexer::new(input);
+        let tokens = lexer.process_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let output = parser.parse().unwrap();
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_parse_empty_array() {
+        let input: &str = "[]";
+        let expected = JsonValue::Array(Vec::new());
+
+        let mut lexer = Lexer::new(input);
+        let tokens = lexer.process_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let output = parser.parse().unwrap();
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_parse_invalid_json_returns_err() {
+        let input: &str = "{\"a\":}";
+
+        let mut lexer = Lexer::new(input);
+        let tokens = lexer.process_tokens().unwrap();
+        let mut parser = Parser::new(tokens);
+        let output = parser.parse();
+
+        assert!(output.is_err());
     }
 }
