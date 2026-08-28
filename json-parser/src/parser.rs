@@ -1,7 +1,9 @@
 use crate::lexer::Token;
+use core::fmt;
 use miette::{Result, miette};
 use std::collections::HashMap;
 
+#[derive(Debug)]
 pub enum JsonValue {
     Null,
     Bool(bool),
@@ -9,6 +11,19 @@ pub enum JsonValue {
     String(String),
     Array(Vec<JsonValue>),
     Object(HashMap<String, JsonValue>),
+}
+
+impl fmt::Display for JsonValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            JsonValue::Null => write!(f, "Null"),
+            JsonValue::Bool(b) => write!(f, "{b}"),
+            JsonValue::Number(n) => write!(f, "{n}"),
+            JsonValue::String(s) => write!(f, "{s}"),
+            JsonValue::Array(v) => write!(f, "{v:?}"),
+            JsonValue::Object(m) => write!(f, "{m:?}"),
+        }
+    }
 }
 
 pub struct Parser {
