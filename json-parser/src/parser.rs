@@ -58,6 +58,18 @@ impl Parser {
         match token {
             Token::LeftBrace => self.parse_object(),
             Token::LeftBracket => self.parse_array(),
+            Token::Number(n) => {
+                self.advance();
+                Ok(JsonValue::Number(n))
+            }
+            Token::Bool(b) => {
+                self.advance();
+                Ok(JsonValue::Bool(b))
+            }
+            Token::Null => {
+                self.advance();
+                Ok(JsonValue::Null)
+            }
             Token::String(s) => {
                 self.advance();
                 Ok(JsonValue::String(s))
