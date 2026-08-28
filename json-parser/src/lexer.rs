@@ -1,3 +1,5 @@
+use core::fmt;
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Token {
     LeftBrace,
@@ -16,6 +18,23 @@ pub struct Lexer {
     pub tokens: Vec<Token>,
     pub input: Vec<char>,
     pos: usize,
+}
+
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Token::LeftBracket => write!(f, "["),
+            Token::RightBracket => write!(f, "]"),
+            Token::LeftBrace => write!(f, "{{"),
+            Token::RightBrace => write!(f, "}}"),
+            Token::Colon => write!(f, ":"),
+            Token::String(s) => write!(f, "{s}"),
+            Token::Number(n) => write!(f, "{n}"),
+            Token::Bool(b) => write!(f, "{b}"),
+            Token::Null => write!(f, "Null"),
+            Token::Comma => write!(f, ","),
+        }
+    }
 }
 
 impl Lexer {
