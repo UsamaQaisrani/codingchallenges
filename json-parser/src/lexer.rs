@@ -55,7 +55,7 @@ impl Lexer {
 
     fn skip_whitespace(&mut self) {
         while let Some(peek_char) = self.peek()
-            && peek_char == ' '
+            && (peek_char == ' ' || peek_char == '\t' || peek_char == '\r' || peek_char == '\n')
         {
             self.pos += 1;
         }
