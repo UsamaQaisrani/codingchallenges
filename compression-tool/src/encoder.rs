@@ -18,7 +18,8 @@ pub struct Encoder;
 impl Encoder {
     pub fn encode(&self, file_path: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
         let mut freqs = self.get_frequencies(file_path)?;
-        let _tree = self.build_huffman_tree(&mut freqs)?;
+        let tree = self.build_huffman_tree(&mut freqs)?;
+        let _lookup_table = self.generate_prefix_code_table(tree);
         Ok(())
     }
 
@@ -83,6 +84,27 @@ impl Encoder {
 
         Ok(root)
     }
+
+    fn generate_prefix_code_table(&self, node: HuffmanNode) -> HashMap<char, u32> {
+        let mut table = HashMap::new();
+        self.traverse(&node, 0, &mut table);
+        table
+    }
+
+    fn traverse(&self, node: &HuffmanNode, code: u32, table: &mut HashMap<char, u32>) {
+        if let Some(character) = node.character {
+            table.insert(character, code);
+            return;
+        };
+
+        if let Some(left) = &node.left_child {
+            self.traverse(left, code << 1, table);
+        }
+
+        if let Some(right) = &node.right_child {
+            self.traverse(right, (code << 1) | 1, table);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -146,5 +168,21 @@ mod tests {
         };
 
         assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_generate_prefix_code_table() {
+        let mut tmp = tempfile::NamedTempFile::new().unwrap();
+        write!(tmp, "aaaabb").unwrap();
+
+        let encoder = Encoder {};
+        let mut pq: PriorityQueue<HuffmanNode, Reverse<u32>> = encoder
+            .clone()
+            .get_frequencies(Some(tmp.path().to_str().unwrap()))
+            .unwrap();
+        let tree = encoder.build_huffman_tree(&mut pq).unwrap();
+        let output = encoder.generate_prefix_code_table(tree);
+
+        assert_eq!(output.get(&'a'), Some(&1_u32));
     }
 }
