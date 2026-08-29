@@ -85,24 +85,30 @@ impl Encoder {
         Ok(root)
     }
 
-    fn generate_prefix_code_table(&self, node: HuffmanNode) -> HashMap<char, u32> {
+    fn generate_prefix_code_table(&self, node: HuffmanNode) -> HashMap<char, (u32, u32)> {
         let mut table = HashMap::new();
-        self.traverse(&node, 0, &mut table);
+        self.traverse(&node, 0, 0, &mut table);
         table
     }
 
-    fn traverse(&self, node: &HuffmanNode, code: u32, table: &mut HashMap<char, u32>) {
+    fn traverse(
+        &self,
+        node: &HuffmanNode,
+        code: u32,
+        length: u32,
+        table: &mut HashMap<char, (u32, u32)>,
+    ) {
         if let Some(character) = node.character {
-            table.insert(character, code);
+            table.insert(character, (code, length));
             return;
         };
 
         if let Some(left) = &node.left_child {
-            self.traverse(left, code << 1, table);
+            self.traverse(left, code << 1, length + 1, table);
         }
 
         if let Some(right) = &node.right_child {
-            self.traverse(right, (code << 1) | 1, table);
+            self.traverse(right, (code << 1) | 1, length + 1, table);
         }
     }
 }
@@ -173,7 +179,7 @@ mod tests {
     #[test]
     fn test_generate_prefix_code_table() {
         let mut tmp = tempfile::NamedTempFile::new().unwrap();
-        write!(tmp, "aaaabb").unwrap();
+        write!(tmp, "aaaabbc").unwrap();
 
         let encoder = Encoder {};
         let mut pq: PriorityQueue<HuffmanNode, Reverse<u32>> = encoder
@@ -183,6 +189,8 @@ mod tests {
         let tree = encoder.build_huffman_tree(&mut pq).unwrap();
         let output = encoder.generate_prefix_code_table(tree);
 
-        assert_eq!(output.get(&'a'), Some(&1_u32));
+        assert_eq!(output.get(&'a'), Some(&(1, 1)));
+        assert_eq!(output.get(&'b'), Some(&(1, 2)));
+        assert_eq!(output.get(&'c'), Some(&(0, 2)));
     }
 }
