@@ -16,8 +16,14 @@ struct HuffmanNode {
 pub struct Encoder;
 
 impl Encoder {
+    pub fn encode(&self, file_path: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
+        let mut freqs = self.get_frequencies(file_path)?;
+        let _tree = self.build_huffman_tree(&mut freqs)?;
+        Ok(())
+    }
+
     fn get_frequencies(
-        self,
+        &self,
         file_path: Option<&str>,
     ) -> Result<PriorityQueue<HuffmanNode, Reverse<u32>>, Box<dyn std::error::Error>> {
         let chars: Vec<char> = read_string(file_path)?.chars().collect();
