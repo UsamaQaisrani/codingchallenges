@@ -1,10 +1,11 @@
-use std::{char, collections::HashMap};
+use std::{char, collections::HashMap, io::Bytes};
 
 use common::input_reader::read_string;
 use priority_queue::PriorityQueue;
 use std::cmp::Reverse;
+use std::io::Write;
 
-#[derive(Debug, Default, Hash, PartialEq, Eq)]
+#[derive(Debug, Default, Hash, PartialEq, Eq, Clone)]
 struct HuffmanNode {
     pub character: Option<char>,
     pub frequency: u32,
@@ -13,30 +14,44 @@ struct HuffmanNode {
 }
 
 #[derive(Default, Clone)]
-pub struct Encoder;
+pub struct Encoder<'a> {
+    input_file_path: Option<&'a str>,
+    output_file_path: String,
+}
 
-impl Encoder {
-    pub fn encode(&self, file_path: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
-        let mut freqs = self.get_frequencies(file_path)?;
-        let tree = self.build_huffman_tree(&mut freqs)?;
-        let _lookup_table = self.generate_prefix_code_table(tree);
+impl<'a> Encoder<'a> {
+    pub fn new(input_file_path: Option<&'a str>, output_file_path: String) -> Self {
+        Self {
+            input_file_path,
+            output_file_path,
+        }
+    }
+
+    pub fn encode(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let chars: Vec<char> = read_string(self.input_file_path)?.chars().collect();
+        let freqs = self.get_frequencies(&chars);
+        let mut pq = self.create_pq(&freqs);
+        let tree = self.build_huffman_tree(&mut pq)?;
+        let lookup_table = self.generate_prefix_code_table(tree);
+        self.write_encoded_file(&chars, &self.output_file_path, freqs, lookup_table)?;
+
         Ok(())
     }
 
-    fn get_frequencies(
-        &self,
-        file_path: Option<&str>,
-    ) -> Result<PriorityQueue<HuffmanNode, Reverse<u32>>, Box<dyn std::error::Error>> {
-        let chars: Vec<char> = read_string(file_path)?.chars().collect();
+    fn get_frequencies(&self, chars: &[char]) -> HashMap<char, u32> {
         let mut freq_map: HashMap<char, u32> = HashMap::new();
-        let mut pq: PriorityQueue<HuffmanNode, Reverse<u32>> = PriorityQueue::new();
 
         for char in chars.iter() {
             let count = freq_map.entry(*char).or_insert(0_u32);
             *count += 1;
         }
 
-        for (key, val) in freq_map.iter() {
+        freq_map
+    }
+
+    fn create_pq(&self, freqs: &HashMap<char, u32>) -> PriorityQueue<HuffmanNode, Reverse<u32>> {
+        let mut pq: PriorityQueue<HuffmanNode, Reverse<u32>> = PriorityQueue::new();
+        for (key, val) in freqs.iter() {
             pq.push(
                 HuffmanNode {
                     character: Some(*key),
@@ -48,7 +63,7 @@ impl Encoder {
             );
         }
 
-        Ok(pq)
+        pq
     }
 
     fn build_huffman_tree(
@@ -127,22 +142,101 @@ impl Encoder {
             self.traverse(right, (code << 1) | 1, length + 1, table);
         }
     }
+
+    fn write_encoded_file(
+        &self,
+        chars: &Vec<char>,
+        output_file_path: &str,
+        freq_map: HashMap<char, u32>,
+        lookup_table: HashMap<char, (u32, u32)>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let mut bytes: Vec<u8> = Vec::new();
+        let header = self.create_header(freq_map);
+        let encoded_text = self.encode_text(chars, lookup_table);
+
+        bytes.extend_from_slice(&header);
+        bytes.extend_from_slice(&encoded_text);
+
+        let mut file = std::fs::File::create(output_file_path)?;
+        Write::write_all(&mut file, &bytes)?;
+
+        Ok(())
+    }
+
+    fn create_header(&self, table: HashMap<char, u32>) -> Vec<u8> {
+        let mut bytes: Vec<u8> = Vec::new();
+        let map_length: u32 = table.len() as u32;
+
+        // Add characters count
+        bytes.extend_from_slice(&map_length.to_be_bytes());
+
+        // Add characters and their frequencies
+        for (key, val) in table.iter() {
+            let c: u32 = *key as u32;
+            bytes.extend_from_slice(&c.to_be_bytes());
+            bytes.extend_from_slice(&val.to_be_bytes());
+        }
+
+        bytes
+    }
+
+    fn encode_text(&self, chars: &Vec<char>, table: HashMap<char, (u32, u32)>) -> Vec<u8> {
+        let mut bytes: Vec<u8> = Vec::new();
+        let mut current_byte: u8 = 0;
+        let mut bits_in_bytes: u8 = 0;
+
+        for character in chars {
+            let &(code, length) = table
+                .get(character)
+                .expect("character should be in the Huffman Table");
+
+            for i in (0..length).rev() {
+                let bit = ((code >> i) & 1) as u8;
+                current_byte = (current_byte << 1) | bit;
+                bits_in_bytes += 1;
+
+                if bits_in_bytes == 8 {
+                    bytes.push(current_byte);
+                    current_byte = 0;
+                    bits_in_bytes = 0;
+                }
+            }
+        }
+
+        if bits_in_bytes > 0 {
+            current_byte <<= 8 - bits_in_bytes;
+            bytes.push(current_byte);
+        }
+
+        bytes
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
+
+    fn chars(s: &str) -> Vec<char> {
+        s.chars().collect()
+    }
 
     #[test]
-    fn test_get_frequencies_from_file() {
-        let mut tmp = tempfile::NamedTempFile::new().unwrap();
-        write!(tmp, "aaaa").unwrap();
+    fn test_get_frequencies() {
+        let encoder = Encoder::default();
+        let output = encoder.get_frequencies(&chars("aaaa"));
 
-        let encoder = Encoder {};
-        let output: PriorityQueue<HuffmanNode, Reverse<u32>> = encoder
-            .get_frequencies(Some(tmp.path().to_str().unwrap()))
-            .unwrap();
+        let mut expected = HashMap::new();
+        expected.insert('a', 4);
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_create_pq() {
+        let encoder = Encoder::default();
+        let freqs = encoder.get_frequencies(&chars("aaaa"));
+        let pq = encoder.create_pq(&freqs);
+
         let mut expected: PriorityQueue<HuffmanNode, Reverse<u32>> = PriorityQueue::new();
         expected.push(
             HuffmanNode {
@@ -154,20 +248,16 @@ mod tests {
             Reverse(4),
         );
 
-        assert_eq!(expected, output);
+        assert_eq!(pq, expected);
     }
 
     #[test]
     fn test_build_huffman_tree() {
-        let mut tmp = tempfile::NamedTempFile::new().unwrap();
-        write!(tmp, "aaaabb").unwrap();
-
-        let encoder = Encoder {};
-        let mut pq: PriorityQueue<HuffmanNode, Reverse<u32>> = encoder
-            .clone()
-            .get_frequencies(Some(tmp.path().to_str().unwrap()))
-            .unwrap();
+        let encoder = Encoder::default();
+        let freqs = encoder.get_frequencies(&chars("aaaabb"));
+        let mut pq = encoder.create_pq(&freqs);
         let output = encoder.build_huffman_tree(&mut pq).unwrap();
+
         let left_child = HuffmanNode {
             character: Some('b'),
             frequency: 2,
@@ -194,14 +284,9 @@ mod tests {
 
     #[test]
     fn test_generate_prefix_code_table() {
-        let mut tmp = tempfile::NamedTempFile::new().unwrap();
-        write!(tmp, "aaaabbc").unwrap();
-
-        let encoder = Encoder {};
-        let mut pq: PriorityQueue<HuffmanNode, Reverse<u32>> = encoder
-            .clone()
-            .get_frequencies(Some(tmp.path().to_str().unwrap()))
-            .unwrap();
+        let encoder = Encoder::default();
+        let freqs = encoder.get_frequencies(&chars("aaaabbc"));
+        let mut pq = encoder.create_pq(&freqs);
         let tree = encoder.build_huffman_tree(&mut pq).unwrap();
         let output = encoder.generate_prefix_code_table(tree);
 
@@ -212,17 +297,39 @@ mod tests {
 
     #[test]
     fn test_generate_prefix_code_table_single_symbol() {
-        let mut tmp = tempfile::NamedTempFile::new().unwrap();
-        write!(tmp, "a").unwrap();
-
-        let encoder = Encoder {};
-        let mut pq: PriorityQueue<HuffmanNode, Reverse<u32>> = encoder
-            .clone()
-            .get_frequencies(Some(tmp.path().to_str().unwrap()))
-            .unwrap();
+        let encoder = Encoder::default();
+        let freqs = encoder.get_frequencies(&chars("a"));
+        let mut pq = encoder.create_pq(&freqs);
         let tree = encoder.build_huffman_tree(&mut pq).unwrap();
         let output = encoder.generate_prefix_code_table(tree);
 
         assert_eq!(output.get(&'a'), Some(&(0, 1)));
+    }
+
+    #[test]
+    fn test_create_header() {
+        let encoder = Encoder::default();
+        let mut freqs = HashMap::new();
+        freqs.insert('a', 4_u32);
+
+        let output = encoder.create_header(freqs);
+        let mut expected: Vec<u8> = Vec::new();
+        expected.extend_from_slice(&1_u32.to_be_bytes());
+        expected.extend_from_slice(&('a' as u32).to_be_bytes());
+        expected.extend_from_slice(&4_u32.to_be_bytes());
+
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_encode_text() {
+        let encoder = Encoder::default();
+        let mut table = HashMap::new();
+        table.insert('a', (0_u32, 1_u32));
+        table.insert('b', (1_u32, 1_u32));
+
+        let output = encoder.encode_text(&chars("ab"), table);
+
+        assert_eq!(output, vec![0b0100_0000]);
     }
 }
