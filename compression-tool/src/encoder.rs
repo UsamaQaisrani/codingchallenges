@@ -58,6 +58,22 @@ impl Encoder {
         if pq.is_empty() {
             return Ok(HuffmanNode::default());
         }
+
+        if pq.len() == 1 {
+            let Some((child, _)) = pq.pop() else {
+                return Err("Empty queue, cannot build HuffmanTree".into());
+            };
+
+            let parent = HuffmanNode {
+                character: None,
+                frequency: child.frequency,
+                left_child: Some(Box::new(child)),
+                right_child: None,
+            };
+
+            return Ok(parent);
+        }
+
         while pq.len() >= 2 {
             let Some((left, _)) = pq.pop() else {
                 break;
@@ -192,5 +208,21 @@ mod tests {
         assert_eq!(output.get(&'a'), Some(&(1, 1)));
         assert_eq!(output.get(&'b'), Some(&(1, 2)));
         assert_eq!(output.get(&'c'), Some(&(0, 2)));
+    }
+
+    #[test]
+    fn test_generate_prefix_code_table_single_symbol() {
+        let mut tmp = tempfile::NamedTempFile::new().unwrap();
+        write!(tmp, "a").unwrap();
+
+        let encoder = Encoder {};
+        let mut pq: PriorityQueue<HuffmanNode, Reverse<u32>> = encoder
+            .clone()
+            .get_frequencies(Some(tmp.path().to_str().unwrap()))
+            .unwrap();
+        let tree = encoder.build_huffman_tree(&mut pq).unwrap();
+        let output = encoder.generate_prefix_code_table(tree);
+
+        assert_eq!(output.get(&'a'), Some(&(0, 1)));
     }
 }
