@@ -1,5 +1,6 @@
-use std::{char, collections::HashMap, io::Bytes};
+use std::{char, collections::HashMap};
 
+use bitvec::prelude::*;
 use common::input_reader::read_string;
 use priority_queue::PriorityQueue;
 use std::cmp::Reverse;
@@ -116,30 +117,35 @@ impl<'a> Encoder<'a> {
         Ok(root)
     }
 
-    fn generate_prefix_code_table(&self, node: HuffmanNode) -> HashMap<char, (u32, u32)> {
+    fn generate_prefix_code_table(&self, node: HuffmanNode) -> HashMap<char, BitVec<u8, Msb0>> {
         let mut table = HashMap::new();
-        self.traverse(&node, 0, 0, &mut table);
+        let code = BitVec::new();
+        self.traverse(&node, code, &mut table);
         table
     }
 
     fn traverse(
         &self,
         node: &HuffmanNode,
-        code: u32,
-        length: u32,
-        table: &mut HashMap<char, (u32, u32)>,
+        code: BitVec<u8, Msb0>,
+        table: &mut HashMap<char, BitVec<u8, Msb0>>,
     ) {
         if let Some(character) = node.character {
-            table.insert(character, (code, length));
+            table.insert(character, code);
             return;
         };
 
         if let Some(left) = &node.left_child {
-            self.traverse(left, code << 1, length + 1, table);
+            let mut left_code = code.clone();
+            left_code.push(false);
+
+            self.traverse(left, left_code, table);
         }
 
         if let Some(right) = &node.right_child {
-            self.traverse(right, (code << 1) | 1, length + 1, table);
+            let mut right_code = code.clone();
+            right_code.push(true);
+            self.traverse(right, right_code, table);
         }
     }
 
@@ -148,7 +154,7 @@ impl<'a> Encoder<'a> {
         chars: &Vec<char>,
         output_file_path: &str,
         freq_map: HashMap<char, u32>,
-        lookup_table: HashMap<char, (u32, u32)>,
+        lookup_table: HashMap<char, BitVec<u8, Msb0>>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let mut bytes: Vec<u8> = Vec::new();
         let header = self.create_header(freq_map);
@@ -180,35 +186,14 @@ impl<'a> Encoder<'a> {
         bytes
     }
 
-    fn encode_text(&self, chars: &Vec<char>, table: HashMap<char, (u32, u32)>) -> Vec<u8> {
-        let mut bytes: Vec<u8> = Vec::new();
-        let mut current_byte: u8 = 0;
-        let mut bits_in_bytes: u8 = 0;
+    fn encode_text(&self, chars: &Vec<char>, table: HashMap<char, BitVec<u8, Msb0>>) -> Vec<u8> {
+        let mut bits = BitVec::<u8, Msb0>::new();
 
-        for character in chars {
-            let &(code, length) = table
-                .get(character)
-                .expect("character should be in the Huffman Table");
-
-            for i in (0..length).rev() {
-                let bit = ((code >> i) & 1) as u8;
-                current_byte = (current_byte << 1) | bit;
-                bits_in_bytes += 1;
-
-                if bits_in_bytes == 8 {
-                    bytes.push(current_byte);
-                    current_byte = 0;
-                    bits_in_bytes = 0;
-                }
-            }
+        for character in chars.iter() {
+            bits.extend_from_bitslice(&table[&character]);
         }
 
-        if bits_in_bytes > 0 {
-            current_byte <<= 8 - bits_in_bytes;
-            bytes.push(current_byte);
-        }
-
-        bytes
+        bits.into_vec()
     }
 }
 
@@ -290,9 +275,9 @@ mod tests {
         let tree = encoder.build_huffman_tree(&mut pq).unwrap();
         let output = encoder.generate_prefix_code_table(tree);
 
-        assert_eq!(output.get(&'a'), Some(&(1, 1)));
-        assert_eq!(output.get(&'b'), Some(&(1, 2)));
-        assert_eq!(output.get(&'c'), Some(&(0, 2)));
+        assert_eq!(output.get(&'a'), Some(&bitvec![u8, Msb0; 1]));
+        assert_eq!(output.get(&'b'), Some(&bitvec![u8, Msb0; 0, 1]));
+        assert_eq!(output.get(&'c'), Some(&bitvec![u8, Msb0; 0, 0]));
     }
 
     #[test]
@@ -303,7 +288,7 @@ mod tests {
         let tree = encoder.build_huffman_tree(&mut pq).unwrap();
         let output = encoder.generate_prefix_code_table(tree);
 
-        assert_eq!(output.get(&'a'), Some(&(0, 1)));
+        assert_eq!(output.get(&'a'), Some(&bitvec![u8, Msb0; 0]));
     }
 
     #[test]
@@ -325,8 +310,8 @@ mod tests {
     fn test_encode_text() {
         let encoder = Encoder::default();
         let mut table = HashMap::new();
-        table.insert('a', (0_u32, 1_u32));
-        table.insert('b', (1_u32, 1_u32));
+        table.insert('a', bitvec![u8, Msb0; 0]);
+        table.insert('b', bitvec![u8, Msb0; 1]);
 
         let output = encoder.encode_text(&chars("ab"), table);
 
