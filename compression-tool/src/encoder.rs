@@ -151,13 +151,13 @@ impl<'a> Encoder<'a> {
 
     fn write_encoded_file(
         &self,
-        chars: &Vec<char>,
+        chars: &[char],
         output_file_path: &str,
         freq_map: HashMap<char, u32>,
         lookup_table: HashMap<char, BitVec<u8, Msb0>>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let mut bytes: Vec<u8> = Vec::new();
-        let header = self.create_header(freq_map);
+        let header = self.create_header(chars.len() as u32, freq_map);
         let encoded_text = self.encode_text(chars, lookup_table);
 
         bytes.extend_from_slice(&header);
@@ -169,12 +169,15 @@ impl<'a> Encoder<'a> {
         Ok(())
     }
 
-    fn create_header(&self, table: HashMap<char, u32>) -> Vec<u8> {
+    fn create_header(&self, total_char_count: u32, table: HashMap<char, u32>) -> Vec<u8> {
         let mut bytes: Vec<u8> = Vec::new();
         let map_length: u32 = table.len() as u32;
 
         // Add characters count
         bytes.extend_from_slice(&map_length.to_be_bytes());
+
+        // Add total_char_count
+        bytes.extend_from_slice(&total_char_count.to_be_bytes());
 
         // Add characters and their frequencies
         for (key, val) in table.iter() {
@@ -186,11 +189,11 @@ impl<'a> Encoder<'a> {
         bytes
     }
 
-    fn encode_text(&self, chars: &Vec<char>, table: HashMap<char, BitVec<u8, Msb0>>) -> Vec<u8> {
+    fn encode_text(&self, chars: &[char], table: HashMap<char, BitVec<u8, Msb0>>) -> Vec<u8> {
         let mut bits = BitVec::<u8, Msb0>::new();
 
         for character in chars.iter() {
-            bits.extend_from_bitslice(&table[&character]);
+            bits.extend_from_bitslice(&table[character]);
         }
 
         bits.into_vec()
@@ -297,8 +300,9 @@ mod tests {
         let mut freqs = HashMap::new();
         freqs.insert('a', 4_u32);
 
-        let output = encoder.create_header(freqs);
+        let output = encoder.create_header(1_u32, freqs);
         let mut expected: Vec<u8> = Vec::new();
+        expected.extend_from_slice(&1_u32.to_be_bytes());
         expected.extend_from_slice(&1_u32.to_be_bytes());
         expected.extend_from_slice(&('a' as u32).to_be_bytes());
         expected.extend_from_slice(&4_u32.to_be_bytes());
