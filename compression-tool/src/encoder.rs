@@ -1,18 +1,9 @@
 use std::{char, collections::HashMap};
 
+use crate::tree::{HuffmanNode, build_huffman_tree, create_pq};
 use bitvec::prelude::*;
 use common::input_reader::read_string;
-use priority_queue::PriorityQueue;
-use std::cmp::Reverse;
 use std::io::Write;
-
-#[derive(Debug, Default, Hash, PartialEq, Eq, Clone)]
-struct HuffmanNode {
-    pub character: Option<char>,
-    pub frequency: u32,
-    left_child: Option<Box<HuffmanNode>>,
-    right_child: Option<Box<HuffmanNode>>,
-}
 
 #[derive(Default, Clone)]
 pub struct Encoder<'a> {
@@ -31,15 +22,15 @@ impl<'a> Encoder<'a> {
     pub fn encode(&self) -> Result<(), Box<dyn std::error::Error>> {
         let chars: Vec<char> = read_string(self.input_file_path)?.chars().collect();
         let freqs = self.get_frequencies(&chars);
-        let mut pq = self.create_pq(&freqs);
-        let tree = self.build_huffman_tree(&mut pq)?;
+        let mut pq = create_pq(&freqs);
+        let tree = build_huffman_tree(&mut pq)?;
         let lookup_table = self.generate_prefix_code_table(tree);
         self.write_encoded_file(&chars, &self.output_file_path, freqs, lookup_table)?;
 
         Ok(())
     }
 
-    fn get_frequencies(&self, chars: &[char]) -> HashMap<char, u32> {
+    pub fn get_frequencies(&self, chars: &[char]) -> HashMap<char, u32> {
         let mut freq_map: HashMap<char, u32> = HashMap::new();
 
         for char in chars.iter() {
@@ -48,73 +39,6 @@ impl<'a> Encoder<'a> {
         }
 
         freq_map
-    }
-
-    fn create_pq(&self, freqs: &HashMap<char, u32>) -> PriorityQueue<HuffmanNode, Reverse<u32>> {
-        let mut pq: PriorityQueue<HuffmanNode, Reverse<u32>> = PriorityQueue::new();
-        for (key, val) in freqs.iter() {
-            pq.push(
-                HuffmanNode {
-                    character: Some(*key),
-                    frequency: *val,
-                    left_child: None,
-                    right_child: None,
-                },
-                Reverse(*val),
-            );
-        }
-
-        pq
-    }
-
-    fn build_huffman_tree(
-        &self,
-        pq: &mut PriorityQueue<HuffmanNode, Reverse<u32>>,
-    ) -> Result<HuffmanNode, Box<dyn std::error::Error>> {
-        if pq.is_empty() {
-            return Ok(HuffmanNode::default());
-        }
-
-        if pq.len() == 1 {
-            let Some((child, _)) = pq.pop() else {
-                return Err("Empty queue, cannot build HuffmanTree".into());
-            };
-
-            let parent = HuffmanNode {
-                character: None,
-                frequency: child.frequency,
-                left_child: Some(Box::new(child)),
-                right_child: None,
-            };
-
-            return Ok(parent);
-        }
-
-        while pq.len() >= 2 {
-            let Some((left, _)) = pq.pop() else {
-                break;
-            };
-
-            let Some((right, _)) = pq.pop() else {
-                break;
-            };
-
-            let parent_freq = left.frequency + right.frequency;
-            let parent: HuffmanNode = HuffmanNode {
-                character: None,
-                frequency: parent_freq,
-                left_child: Some(Box::new(left)),
-                right_child: Some(Box::new(right)),
-            };
-
-            pq.push(parent, Reverse(parent_freq));
-        }
-
-        let Some((root, _)) = pq.pop() else {
-            return Err("Empty queue, cannot build HuffmanTree".into());
-        };
-
-        Ok(root)
     }
 
     fn generate_prefix_code_table(&self, node: HuffmanNode) -> HashMap<char, BitVec<u8, Msb0>> {
@@ -203,6 +127,7 @@ impl<'a> Encoder<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tree::{build_huffman_tree, create_pq};
 
     fn chars(s: &str) -> Vec<char> {
         s.chars().collect()
@@ -220,62 +145,11 @@ mod tests {
     }
 
     #[test]
-    fn test_create_pq() {
-        let encoder = Encoder::default();
-        let freqs = encoder.get_frequencies(&chars("aaaa"));
-        let pq = encoder.create_pq(&freqs);
-
-        let mut expected: PriorityQueue<HuffmanNode, Reverse<u32>> = PriorityQueue::new();
-        expected.push(
-            HuffmanNode {
-                character: Some('a'),
-                frequency: 4,
-                left_child: None,
-                right_child: None,
-            },
-            Reverse(4),
-        );
-
-        assert_eq!(pq, expected);
-    }
-
-    #[test]
-    fn test_build_huffman_tree() {
-        let encoder = Encoder::default();
-        let freqs = encoder.get_frequencies(&chars("aaaabb"));
-        let mut pq = encoder.create_pq(&freqs);
-        let output = encoder.build_huffman_tree(&mut pq).unwrap();
-
-        let left_child = HuffmanNode {
-            character: Some('b'),
-            frequency: 2,
-            left_child: None,
-            right_child: None,
-        };
-
-        let right_child = HuffmanNode {
-            character: Some('a'),
-            frequency: 4,
-            left_child: None,
-            right_child: None,
-        };
-
-        let expected = HuffmanNode {
-            character: None,
-            frequency: right_child.frequency + left_child.frequency,
-            left_child: Some(Box::new(left_child)),
-            right_child: Some(Box::new(right_child)),
-        };
-
-        assert_eq!(output, expected);
-    }
-
-    #[test]
     fn test_generate_prefix_code_table() {
         let encoder = Encoder::default();
         let freqs = encoder.get_frequencies(&chars("aaaabbc"));
-        let mut pq = encoder.create_pq(&freqs);
-        let tree = encoder.build_huffman_tree(&mut pq).unwrap();
+        let mut pq = create_pq(&freqs);
+        let tree = build_huffman_tree(&mut pq).unwrap();
         let output = encoder.generate_prefix_code_table(tree);
 
         assert_eq!(output.get(&'a'), Some(&bitvec![u8, Msb0; 1]));
@@ -287,8 +161,8 @@ mod tests {
     fn test_generate_prefix_code_table_single_symbol() {
         let encoder = Encoder::default();
         let freqs = encoder.get_frequencies(&chars("a"));
-        let mut pq = encoder.create_pq(&freqs);
-        let tree = encoder.build_huffman_tree(&mut pq).unwrap();
+        let mut pq = create_pq(&freqs);
+        let tree = build_huffman_tree(&mut pq).unwrap();
         let output = encoder.generate_prefix_code_table(tree);
 
         assert_eq!(output.get(&'a'), Some(&bitvec![u8, Msb0; 0]));

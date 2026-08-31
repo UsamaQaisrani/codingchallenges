@@ -15,3 +15,6 @@
 
 # Env files (if any challenge needs local config/secrets, e.g. http-server tests)
 .env
+
+# Local test fixtures/data per challenge — never committed
+**/test/
