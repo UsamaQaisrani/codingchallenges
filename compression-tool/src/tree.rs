@@ -4,6 +4,7 @@ use std::{char, collections::HashMap};
 
 #[derive(Debug, Default, Hash, PartialEq, Eq, Clone)]
 pub struct HuffmanNode {
+    pub is_leaf: bool,
     pub character: Option<char>,
     pub frequency: u32,
     pub left_child: Option<Box<HuffmanNode>>,
@@ -12,9 +13,14 @@ pub struct HuffmanNode {
 
 pub fn create_pq(freqs: &HashMap<char, u32>) -> PriorityQueue<HuffmanNode, Reverse<u32>> {
     let mut pq: PriorityQueue<HuffmanNode, Reverse<u32>> = PriorityQueue::new();
-    for (key, val) in freqs.iter() {
+
+    let mut entries: Vec<(&char, &u32)> = freqs.iter().collect();
+    entries.sort_by(|a, b| a.1.cmp(b.1).then(a.0.cmp(b.0)));
+
+    for (key, val) in entries {
         pq.push(
             HuffmanNode {
+                is_leaf: true,
                 character: Some(*key),
                 frequency: *val,
                 left_child: None,
@@ -40,6 +46,7 @@ pub fn build_huffman_tree(
         };
 
         let parent = HuffmanNode {
+            is_leaf: false,
             character: None,
             frequency: child.frequency,
             left_child: Some(Box::new(child)),
@@ -60,6 +67,7 @@ pub fn build_huffman_tree(
 
         let parent_freq = left.frequency + right.frequency;
         let parent: HuffmanNode = HuffmanNode {
+            is_leaf: false,
             character: None,
             frequency: parent_freq,
             left_child: Some(Box::new(left)),
@@ -94,6 +102,7 @@ mod tests {
         let mut expected: PriorityQueue<HuffmanNode, Reverse<u32>> = PriorityQueue::new();
         expected.push(
             HuffmanNode {
+                is_leaf: true,
                 character: Some('a'),
                 frequency: 4,
                 left_child: None,
@@ -113,6 +122,7 @@ mod tests {
         let output = build_huffman_tree(&mut pq).unwrap();
 
         let left_child = HuffmanNode {
+            is_leaf: true,
             character: Some('b'),
             frequency: 2,
             left_child: None,
@@ -120,6 +130,7 @@ mod tests {
         };
 
         let right_child = HuffmanNode {
+            is_leaf: true,
             character: Some('a'),
             frequency: 4,
             left_child: None,
@@ -127,6 +138,7 @@ mod tests {
         };
 
         let expected = HuffmanNode {
+            is_leaf: false,
             character: None,
             frequency: right_child.frequency + left_child.frequency,
             left_child: Some(Box::new(left_child)),
