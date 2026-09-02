@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
+use crate::tree::{HuffmanNode, build_huffman_tree, create_pq};
+use bitvec::{order::Msb0, slice::BitSlice, view::BitView};
 use common::input_reader::read_bytes;
+use std::io::Write;
 
 #[derive(Default, Clone)]
 pub struct Decoder<'a> {
@@ -24,9 +27,13 @@ impl<'a> Decoder<'a> {
         }
     }
 
-    fn decode(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn decode(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let raw_bytes: Vec<u8> = read_bytes(self.input_file_path)?;
-        let _header: Header = self.read_header(&raw_bytes)?;
+        let header: Header = self.read_header(&raw_bytes)?;
+        let mut pq = create_pq(&header.freq_map);
+        let tree = build_huffman_tree(&mut pq)?;
+        let text: String = self.decode_text(&header, &raw_bytes, &tree)?;
+        self.write_output_file(&text)?;
         Ok(())
     }
 
@@ -73,6 +80,69 @@ impl<'a> Decoder<'a> {
             offset_end: curr_offset,
         })
     }
+
+    fn decode_text(
+        &self,
+        header: &Header,
+        raw_bytes: &[u8],
+        root: &HuffmanNode,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let content_bytes = &raw_bytes[header.offset_end..];
+        let content_bits: &BitSlice<u8, Msb0> = content_bytes.view_bits::<Msb0>();
+        let mut text: String = String::new();
+
+        let mut char_count: u32 = 0;
+
+        let mut trav_node: &HuffmanNode = root;
+        for curr_bit in content_bits.iter() {
+            if char_count >= header.total_char_count {
+                break;
+            }
+            if trav_node.is_leaf {
+                match trav_node.character {
+                    Some(c) => {
+                        text.push(c);
+                        char_count += 1;
+                    }
+                    None => {
+                        return Err("No character found in leaf node".into());
+                    }
+                };
+                trav_node = root;
+            }
+
+            if curr_bit == true {
+                trav_node = match trav_node.right_child.as_deref() {
+                    Some(next_node) => next_node,
+                    None => return Err("bitstream doesn't match tree shape".into()),
+                };
+            } else {
+                trav_node = match trav_node.left_child.as_deref() {
+                    Some(next_node) => next_node,
+                    None => return Err("bitstream doesn't match tree shape".into()),
+                };
+            }
+        }
+
+        if trav_node.is_leaf {
+            match trav_node.character {
+                Some(c) => {
+                    text.push(c);
+                }
+                None => {
+                    return Err("No character found in leaf node".into());
+                }
+            };
+        }
+
+        Ok(text)
+    }
+
+    fn write_output_file(&self, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let mut file = std::fs::File::create(&self.output_file_path)?;
+        Write::write_all(&mut file, text.as_bytes())?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -110,5 +180,41 @@ mod tests {
         let raw_bytes: Vec<u8> = vec![0, 0, 0];
 
         assert!(decoder.read_header(&raw_bytes).is_err());
+    }
+
+    #[test]
+    fn test_decode_text() {
+        // "aaaabbc" freqs (a:4, b:2, c:1) produce codes a=[1], b=[0,1], c=[0,0]
+        let encoder = crate::encoder::Encoder::default();
+        let freqs = encoder.get_frequencies(&"aaaabbc".chars().collect::<Vec<char>>());
+        let mut pq = create_pq(&freqs);
+        let tree = build_huffman_tree(&mut pq).unwrap();
+
+        // "ac" -> bits [1,0,0] padded to one byte -> 0b1000_0000
+        let raw_bytes: Vec<u8> = vec![0b1000_0000];
+
+        let decoder = Decoder::default();
+        let header = Header {
+            char_count: 3,
+            total_char_count: 2,
+            freq_map: freqs,
+            offset_end: 0,
+        };
+
+        let output = decoder.decode_text(&header, &raw_bytes, &tree).unwrap();
+
+        assert_eq!(output, "ac");
+    }
+
+    #[test]
+    fn test_write_output_file() {
+        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let path = tmp.path().to_str().unwrap().to_string();
+
+        let decoder = Decoder::new(None, path.clone());
+        decoder.write_output_file("hello world").unwrap();
+
+        let contents = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(contents, "hello world");
     }
 }
