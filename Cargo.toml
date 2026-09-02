@@ -1,4 +1,4 @@
 [workspace]
 resolver = "2"
-members = ["common","wc-tool"]
+members = ["common", "compression-tool","wc-tool", "json-parser"]
 
