@@ -23,3 +23,46 @@ pub fn parse_lines<'a>(
 
     Ok(col_vec)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_lines_single_field() {
+        let cols: &[usize] = &[1];
+        let res = parse_lines(cols, "this\tis\ttab\tseparated\tline", "\t").unwrap();
+        let expected: Vec<Vec<&str>> = vec![Vec::from(["this"])];
+        assert_eq!(res, expected);
+    }
+
+    #[test]
+    fn test_parse_lines_multiple_fields() {
+        let cols: &[usize] = &[1, 2];
+        let res = parse_lines(cols, "this\tis\ttab\tseparated\tline", "\t").unwrap();
+        let expected: Vec<Vec<&str>> = vec![Vec::from(["this", "is"])];
+        assert_eq!(res, expected);
+    }
+
+    #[test]
+    fn test_parse_lines_custom_delimiter() {
+        let cols: &[usize] = &[1, 2];
+        let res = parse_lines(cols, "this,is,tab,separated,line", ",").unwrap();
+        let expected: Vec<Vec<&str>> = vec![Vec::from(["this", "is"])];
+        assert_eq!(res, expected);
+    }
+
+    #[test]
+    fn test_parse_lines_field_zero_returns_error() {
+        let cols: &[usize] = &[0];
+        let res = parse_lines(cols, "this,is,tab,separated,line", ",");
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_parse_lines_field_out_of_range_returns_error() {
+        let cols: &[usize] = &[10];
+        let res = parse_lines(cols, "this,is,tab,separated,line", ",");
+        assert!(res.is_err());
+    }
+}
