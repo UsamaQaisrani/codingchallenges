@@ -18,3 +18,4 @@
 
 # Local test fixtures/data per challenge — never committed
 **/test/
+**/tests/
