@@ -9,11 +9,12 @@ struct Args {
     #[arg(short = 'd')]
     delimiter: Option<String>,
 
-    file_path: String,
+    file_path: Option<String>,
 }
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
-    let text = common::input_reader::read_string(Some(&args.file_path))?;
+    let file_path = args.file_path.filter(|p| p != "-");
+    let text = common::input_reader::read_string(file_path.as_deref())?;
     let delimiter = args.delimiter.unwrap_or("\t".to_string());
     let cols: Vec<usize> = args
         .cols
