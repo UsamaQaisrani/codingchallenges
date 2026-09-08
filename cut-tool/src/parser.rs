@@ -1,4 +1,8 @@
-pub fn parse_lines(n: usize, text: &str) -> Result<Vec<&str>, Box<dyn std::error::Error>> {
+pub fn parse_lines<'a>(
+    n: usize,
+    text: &'a str,
+    delimiter: &'a str,
+) -> Result<Vec<&'a str>, Box<dyn std::error::Error>> {
     if n == 0 {
         return Err("Field numbers start at 1".into());
     }
@@ -7,7 +11,7 @@ pub fn parse_lines(n: usize, text: &str) -> Result<Vec<&str>, Box<dyn std::error
 
     for lines in text.lines() {
         let word = lines
-            .split("\t")
+            .split(delimiter)
             .nth(n - 1)
             .ok_or("Unable to split on separator")?;
         col_vec.push(word);
