@@ -4,13 +4,9 @@ use axum::{
     extract::{Request, State},
     http::HeaderMap,
     response::IntoResponse,
-    routing::any,
 };
 use reqwest::{Body, Method, Url};
-use std::{
-    sync::{Arc, Mutex},
-    usize::MAX,
-};
+use std::sync::{Arc, Mutex};
 
 struct AppState {
     backends: Vec<String>,
@@ -20,9 +16,7 @@ struct AppState {
 pub async fn start(backends: Vec<String>, port: u32) -> Result<(), anyhow::Error> {
     let curr_idx = Mutex::new(0);
     let shared_state = Arc::new(AppState { backends, curr_idx });
-    let app = Router::new()
-        .route("/{*path}", any(forward))
-        .with_state(shared_state);
+    let app = Router::new().fallback(forward).with_state(shared_state);
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
     println!("Load Balancer Listening on {}", port);
     axum::serve(listener, app).await?;
@@ -50,7 +44,7 @@ async fn forward(
 
     let url: Url = url_string.parse()?;
 
-    let body_bytes = axum::body::to_bytes(body, MAX).await?;
+    let body_bytes = axum::body::to_bytes(body, usize::MAX).await?;
     let req_response = send_request(method.clone(), url, headers.clone(), body_bytes).await?;
 
     {
