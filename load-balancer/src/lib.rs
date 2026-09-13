@@ -1,3 +1,3 @@
-pub mod backend;
+pub mod bin;
 pub mod error;
 pub mod lb;

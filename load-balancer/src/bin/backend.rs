@@ -1,3 +1,4 @@
+use clap::Parser;
 use std::sync::Arc;
 
 use axum::{Router, extract::State, response::IntoResponse, routing::get};
@@ -6,7 +7,23 @@ struct AppState {
     id: i32,
 }
 
-pub async fn start(id: i32, port: u32) -> Result<(), anyhow::Error> {
+#[derive(Parser)]
+struct Args {
+    #[arg(short = 'p')]
+    id: i32,
+
+    port: u32,
+}
+
+#[tokio::main]
+pub async fn main() {
+    let args = Args::parse();
+    let be = start(args.id, args.port);
+    let _be = tokio::join!(be);
+    println!("Backend #{}: 0.0.0.0:{}", args.id, args.port)
+}
+
+async fn start(id: i32, port: u32) -> Result<(), anyhow::Error> {
     let shared_state = Arc::new(AppState { id });
     let app = Router::new()
         .route("/", get(hello))
