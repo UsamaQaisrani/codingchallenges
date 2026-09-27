@@ -3,10 +3,11 @@ use common::input_reader::read_string;
 
 #[derive(Debug, Clone, ValueEnum)]
 pub enum SortType {
-    Standard,
+    Heap,
     Merge,
-    Radix,
     Quick,
+    Radix,
+    Standard,
 }
 
 pub fn sort(
@@ -28,6 +29,9 @@ pub fn sort(
         }
         SortType::Quick => {
             words = quick_sort(&words);
+        }
+        SortType::Heap => {
+            words = heap_sort(&words);
         }
         _ => {
             words.sort();
@@ -156,4 +160,40 @@ fn partition(values: &mut [String]) -> usize {
 
     values.swap(store_index, pivot_index);
     store_index
+}
+
+fn heap_sort(values: &[String]) -> Vec<String> {
+    let mut result = values.to_vec();
+    let len = result.len();
+
+    for i in (0..len / 2).rev() {
+        heapify(&mut result, len, i);
+    }
+
+    for end in (1..len).rev() {
+        result.swap(0, end);
+        heapify(&mut result, end, 0);
+    }
+
+    result
+}
+
+fn heapify(values: &mut [String], heap_size: usize, root: usize) {
+    let mut largest = root;
+
+    let left = 2 * root + 1;
+    let right = 2 * root + 2;
+
+    if left < heap_size && values[left] > values[largest] {
+        largest = left;
+    }
+
+    if right < heap_size && values[right] > values[largest] {
+        largest = right;
+    }
+
+    if largest != root {
+        values.swap(root, largest);
+        heapify(values, heap_size, largest);
+    }
 }
