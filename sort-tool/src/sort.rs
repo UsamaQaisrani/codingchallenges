@@ -1,12 +1,16 @@
+use ahash::RandomState;
 use clap::ValueEnum;
 use common::input_reader::read_string;
+use std::fs::File;
+use std::io::Read;
 
-#[derive(Debug, Clone, ValueEnum)]
+#[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum SortType {
     Heap,
     Merge,
     Quick,
     Radix,
+    Random,
     Standard,
 }
 
@@ -21,22 +25,14 @@ pub fn sort(
         .collect();
 
     match sort_type {
-        SortType::Radix => {
-            words = radix_sort(&words);
-        }
-        SortType::Merge => {
-            words = merge_sort(&words);
-        }
-        SortType::Quick => {
-            words = quick_sort(&words);
-        }
-        SortType::Heap => {
-            words = heap_sort(&words);
-        }
-        _ => {
-            words.sort();
-        }
+        SortType::Standard => words.sort(),
+        SortType::Merge => words = merge_sort(&words),
+        SortType::Radix => words = radix_sort(&words),
+        SortType::Quick => words = quick_sort(&words),
+        SortType::Heap => words = heap_sort(&words),
+        SortType::Random => words = random_sort(&words),
     }
+
     if unique {
         words.dedup();
     }
@@ -196,4 +192,36 @@ fn heapify(values: &mut [String], heap_size: usize, root: usize) {
         values.swap(root, largest);
         heapify(values, heap_size, largest);
     }
+}
+
+fn random_sort(values: &[String]) -> Vec<String> {
+    let random_state = random_hash_state();
+
+    let mut hashed: Vec<(u64, String)> = values
+        .iter()
+        .map(|value| {
+            let hash = random_state.hash_one(value);
+            (hash, value.clone())
+        })
+        .collect();
+
+    hashed.sort_unstable_by_key(|(hash, _)| *hash);
+
+    hashed.into_iter().map(|(_, value)| value).collect()
+}
+
+fn random_hash_state() -> RandomState {
+    let mut file = File::open("/dev/random").expect("failed to open /dev/random");
+
+    let mut bytes = [0u8; 32];
+
+    file.read_exact(&mut bytes)
+        .expect("failed to read from /dev/random");
+
+    let k0 = u64::from_ne_bytes(bytes[0..8].try_into().unwrap());
+    let k1 = u64::from_ne_bytes(bytes[8..16].try_into().unwrap());
+    let k2 = u64::from_ne_bytes(bytes[16..24].try_into().unwrap());
+    let k3 = u64::from_ne_bytes(bytes[24..32].try_into().unwrap());
+
+    RandomState::generate_with(k0, k1, k2, k3)
 }
