@@ -6,6 +6,7 @@ pub enum SortType {
     Standard,
     Merge,
     Radix,
+    Quick,
 }
 
 pub fn sort(
@@ -24,6 +25,9 @@ pub fn sort(
         }
         SortType::Merge => {
             words = merge_sort(&words);
+        }
+        SortType::Quick => {
+            words = quick_sort(&words);
         }
         _ => {
             words.sort();
@@ -114,4 +118,42 @@ fn merge(left: &[String], right: &[String]) -> Vec<String> {
     result.extend_from_slice(&right[j..]);
 
     result
+}
+
+fn quick_sort(values: &[String]) -> Vec<String> {
+    if values.len() <= 1 {
+        return values.to_vec();
+    }
+
+    let mut result = values.to_vec();
+    quick_sort_recursive(&mut result);
+
+    result
+}
+
+fn quick_sort_recursive(values: &mut [String]) {
+    if values.len() <= 1 {
+        return;
+    }
+
+    let pivot_index = partition(values);
+
+    let (left, right) = values.split_at_mut(pivot_index);
+    quick_sort_recursive(left);
+    quick_sort_recursive(&mut right[1..]);
+}
+
+fn partition(values: &mut [String]) -> usize {
+    let pivot_index = values.len() - 1;
+    let mut store_index = 0;
+
+    for i in 0..pivot_index {
+        if values[i] <= values[pivot_index] {
+            values.swap(i, store_index);
+            store_index += 1;
+        }
+    }
+
+    values.swap(store_index, pivot_index);
+    store_index
 }
