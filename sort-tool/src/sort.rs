@@ -4,6 +4,7 @@ use common::input_reader::read_string;
 #[derive(Debug, Clone, ValueEnum)]
 pub enum SortType {
     Standard,
+    Merge,
     Radix,
 }
 
@@ -20,6 +21,9 @@ pub fn sort(
     match sort_type {
         SortType::Radix => {
             words = radix_sort(&words);
+        }
+        SortType::Merge => {
+            words = merge_sort(&words);
         }
         _ => {
             words.sort();
@@ -77,4 +81,37 @@ fn radix_sort(list: &[String]) -> Vec<String> {
     }
 
     input
+}
+
+fn merge_sort(values: &[String]) -> Vec<String> {
+    if values.len() <= 1 {
+        return values.to_vec();
+    }
+
+    let mid = values.len() / 2;
+    let left = merge_sort(&values[..mid]);
+    let right = merge_sort(&values[mid..]);
+
+    merge(&left, &right)
+}
+
+fn merge(left: &[String], right: &[String]) -> Vec<String> {
+    let mut result = Vec::with_capacity(left.len() + right.len());
+    let mut i = 0;
+    let mut j = 0;
+
+    while i < left.len() && j < right.len() {
+        if left[i] <= right[j] {
+            result.push(left[i].clone());
+            i += 1;
+        } else {
+            result.push(right[j].clone());
+            j += 1;
+        }
+    }
+
+    result.extend_from_slice(&left[i..]);
+    result.extend_from_slice(&right[j..]);
+
+    result
 }
