@@ -1,10 +1,15 @@
+use calculator::calculator::calculate;
 use clap::Parser;
 
 #[derive(Parser)]
 struct Args {
-    expr: String,
+    exp: String,
 }
 
 fn main() {
-    let _args = Args::parse();
+    let args = Args::parse();
+    match calculate(&args.exp) {
+        Ok(res) => println!("{} = {}", args.exp, res),
+        Err(e) => eprintln!("{}", e),
+    }
 }
