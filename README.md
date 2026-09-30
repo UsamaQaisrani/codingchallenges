@@ -4,13 +4,13 @@ Implementations of Coding Challenges by John Crickett ([codingchallenges.fyi](ht
 
 ## Progress
 
-- [x] 1. Build Your Own wc Tool — [wc-tool](wc-tool)
-- [x] 2. Build Your Own JSON Parser — [json-parser](json-parser)
-- [x] 3. Build Your Own Compression Tool — [compression-tool](compression-tool)
-- [x] 4. Build Your Own cut Tool — [cut-tool](cut-tool)
-- [x] 5. Build Your Own Load Balancer — [load-balancer](load-balancer)
-- [x] 6. Build Your Own Sort Tool
-- [x] 7. Build Your Own Calculator
+- [x] 1. Build Your Own wc Tool - [wc-tool](wc-tool)
+- [x] 2. Build Your Own JSON Parser - [json-parser](json-parser)
+- [x] 3. Build Your Own Compression Tool - [compression-tool](compression-tool)
+- [x] 4. Build Your Own cut Tool - [cut-tool](cut-tool)
+- [x] 5. Build Your Own Load Balancer - [load-balancer](load-balancer)
+- [x] 6. Build Your Own Sort Tool - [sort-tool](sort-tool)
+- [x] 7. Build Your Own Calculator - [calculator](calculator)
 - [ ] 8. Build Your Own Redis Server
 - [ ] 9. Build Your Own grep
 - [ ] 10. Build Your Own uniq Tool
