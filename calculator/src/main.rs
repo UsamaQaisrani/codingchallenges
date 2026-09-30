@@ -7,5 +7,4 @@ struct Args {
 
 fn main() {
     let _args = Args::parse();
-    println!("Hello, world!");
 }
