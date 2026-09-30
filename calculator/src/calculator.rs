@@ -70,28 +70,23 @@ pub fn calculate(exp: &str) -> Result<i32, Box<dyn std::error::Error>> {
             }
         }
     }
-    if stack.len() > 1 {
-        Err("Invalid number of operators and operands".into())
-    } else {
-        match stack.pop() {
-            Some(res) => Ok(res),
-            None => Err("Empty stack when expected 1 item".into()),
-        }
+    if stack.len() != 1 {
+        return Err("Invalid number of operators and operands".into());
     }
+
+    Ok(stack.pop().unwrap())
 }
 
 fn perform_operation(n1: i32, n2: i32, op: char) -> Result<i32, Box<dyn std::error::Error>> {
     match op {
-        '+' => Ok(n1 + n2),
-        '-' => Ok(n1 - n2),
-        '*' => Ok(n1 * n2),
-        '/' => {
-            if let Some(res) = n1.checked_div(n2) {
-                Ok(res)
-            } else {
-                Err(format!("Invalid operator: {}", op).into())
-            }
-        }
+        '+' => n1.checked_add(n2).ok_or_else(|| "Addition overflow".into()),
+        '-' => n1
+            .checked_sub(n2)
+            .ok_or_else(|| "Subtraction overflow".into()),
+        '*' => n1
+            .checked_mul(n2)
+            .ok_or_else(|| "Multiplication overflow".into()),
+        '/' => n1.checked_div(n2).ok_or_else(|| "Division by zero".into()),
         _ => Err(format!("Invalid operator: {}", op).into()),
     }
 }
