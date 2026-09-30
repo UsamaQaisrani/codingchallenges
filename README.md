@@ -10,7 +10,7 @@ Implementations of Coding Challenges by John Crickett ([codingchallenges.fyi](ht
 - [x] 4. Build Your Own cut Tool — [cut-tool](cut-tool)
 - [x] 5. Build Your Own Load Balancer — [load-balancer](load-balancer)
 - [x] 6. Build Your Own Sort Tool
-- [ ] 7. Build Your Own Calculator
+- [x] 7. Build Your Own Calculator
 - [ ] 8. Build Your Own Redis Server
 - [ ] 9. Build Your Own grep
 - [ ] 10. Build Your Own uniq Tool
