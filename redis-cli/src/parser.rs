@@ -79,7 +79,7 @@ impl Parser {
         let start = self.pos;
 
         while let Some(byte) = self.peek() {
-            if self.peek() == Some(b'\r') {
+            if byte == b'\r' {
                 break;
             }
 
