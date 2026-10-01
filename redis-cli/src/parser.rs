@@ -67,6 +67,43 @@ impl Parser {
 
         Ok(if is_negative { -number } else { number })
     }
+
+    fn parse_simple_string(&mut self) -> Result<String, RedisError> {
+        if self.peek() != Some(b'+') {
+            return Err(RedisError::InvalidSimpleString(
+                "Invalid starting token for simple string".to_string(),
+            ));
+        }
+
+        self.pos += 1;
+        let start = self.pos;
+
+        while let Some(byte) = self.peek() {
+            if self.peek() == Some(b'\r') {
+                break;
+            }
+
+            self.pos += 1;
+        }
+
+        if self.input.get(self.pos..self.pos + 2) != Some(b"\r\n") {
+            return Err(RedisError::InvalidSimpleString(
+                "Invalid termination for simple string".to_string(),
+            ));
+        }
+
+        if start == self.pos {
+            return Err(RedisError::InvalidSimpleString(
+                "Empty string while parsing".to_string(),
+            ));
+        }
+
+        let res: String = std::str::from_utf8(&self.input[start..self.pos])
+            .map_err(|e| RedisError::InvalidSimpleString(format!("{}", e)))?
+            .to_string();
+
+        Ok(res)
+    }
 }
 
 #[cfg(test)]
@@ -91,5 +128,24 @@ mod tests {
         let mut parser = Parser::new(input);
         let output = parser.parse_integer().unwrap();
         assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_parser_valid_simple_string() {
+        let input = b"+Ok\r\n".to_vec();
+        let expected: String = String::from("Ok");
+
+        let mut parser = Parser::new(input);
+        let output = parser.parse_simple_string().unwrap();
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_parser_invalid_simple_string() {
+        let input = b"+Ok\n".to_vec();
+
+        let mut parser = Parser::new(input);
+        let output = parser.parse_simple_string();
+        assert!(output.is_err());
     }
 }
