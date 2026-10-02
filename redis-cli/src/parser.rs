@@ -222,7 +222,14 @@ impl Parser {
 
         self.pos += 2;
 
-        let end = self.pos + length;
+        let end = match length.checked_add(self.pos) {
+            Some(end) => end,
+            None => {
+                return Err(RedisError::InvalidBulkStringError(
+                    "Invalid length provided, length overflowed".to_string(),
+                ));
+            }
+        };
 
         if self.input.get(self.pos..end).is_none() {
             return Err(RedisError::InvalidBulkStringError(

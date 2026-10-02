@@ -16,7 +16,7 @@ impl Display for RedisError {
                 write!(f, "Unable to parse integer: {}", s)
             }
             RedisError::InvalidSimpleString(s) => {
-                write!(f, "Unable to parse bulk string: {}", s)
+                write!(f, "Unable to parse simple string: {}", s)
             }
             RedisError::InvalidSimpleError(s) => {
                 write!(f, "Unable to parse error: {}", s)
