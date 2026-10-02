@@ -115,6 +115,8 @@ impl Parser {
             .map_err(|e| RedisError::InvalidSimpleString(format!("{}", e)))?
             .to_string();
 
+        self.pos += 2;
+
         Ok(RespValue::SimpleString(res))
     }
 
@@ -221,9 +223,109 @@ impl Parser {
         self.pos += 2;
 
         let end = self.pos + length;
-        let res: Vec<u8> = self.input[self.pos..end].to_vec();
+
+        if self.input.get(self.pos..end).is_none() {
+            return Err(RedisError::InvalidBulkStringError(
+                "Bulk string is shorter than declared length".to_string(),
+            ));
+        }
+
+        let res = self.input[self.pos..end].to_vec();
+
+        self.pos = end;
+
+        if self.input.get(self.pos..self.pos + 2) != Some(b"\r\n") {
+            return Err(RedisError::InvalidBulkStringError(
+                "Invalid termination for bulk string".to_string(),
+            ));
+        }
+
+        self.pos += 2;
 
         Ok(RespValue::BulkString(Some(res)))
+    }
+
+    fn parse_array(&mut self) -> Result<RespValue, RedisError> {
+        if self.peek() != Some(b'*') {
+            return Err(RedisError::InvalidArrayError(
+                "Invalid starting token for array".to_string(),
+            ));
+        }
+
+        self.pos += 1;
+
+        // Check Null Array
+        if self.peek() == Some(b'-') {
+            self.pos += 1;
+
+            if self.peek() != Some(b'1') {
+                return Err(RedisError::InvalidArrayError(
+                    "Invalid length of null array".to_string(),
+                ));
+            }
+
+            self.pos += 1;
+
+            if self.input.get(self.pos..self.pos + 2) != Some(b"\r\n") {
+                return Err(RedisError::InvalidArrayError(
+                    "Invalid end of null array".to_string(),
+                ));
+            }
+
+            self.pos += 2;
+
+            return Ok(RespValue::Array(None));
+        }
+
+        let start = self.pos;
+
+        // Get Array Length
+        while let Some(byte) = self.peek() {
+            if byte == b'\r' {
+                break;
+            }
+
+            self.pos += 1;
+        }
+
+        if self.input.get(self.pos..self.pos + 2) != Some(b"\r\n") {
+            return Err(RedisError::InvalidArrayError(
+                "Invalid end of length for array".to_string(),
+            ));
+        }
+
+        if start == self.pos {
+            return Err(RedisError::InvalidArrayError(
+                "Empty length for array".to_string(),
+            ));
+        }
+
+        let array_length: u64 = std::str::from_utf8(&self.input[start..self.pos])
+            .map_err(|e| RedisError::InvalidArrayError(format!("{}", e)))?
+            .parse::<u64>()
+            .map_err(|e| RedisError::InvalidArrayError(format!("{}", e)))?;
+
+        self.pos += 2;
+
+        let mut array: Vec<RespValue> = Vec::new();
+
+        for _ in 0..array_length {
+            let res = match self.peek() {
+                Some(b'+') => self.parse_simple_string()?,
+                Some(b'-') => self.parse_simple_error()?,
+                Some(b':') => self.parse_integer()?,
+                Some(b'$') => self.parse_bulk_string()?,
+                Some(b'*') => self.parse_array()?,
+                _ => {
+                    return Err(RedisError::InvalidArrayError(
+                        "Invalid token found in array item".to_string(),
+                    ));
+                }
+            };
+            array.push(res);
+        }
+
+        Ok(RespValue::Array(Some(array)))
     }
 }
 
@@ -309,12 +411,56 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_empty_bulk_string() {
+    fn test_parser_empty_bulk_string() {
         let input = b"$0\r\n\r\n".to_vec();
         let expected: RespValue = RespValue::BulkString(Some(b"".to_vec()));
 
         let mut parser = Parser::new(input);
         let output = parser.parse_bulk_string().unwrap();
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_parser_valid_array_with_single_item() {
+        let input = b"*1\r\n$5\r\nhello\r\n".to_vec();
+        let expected: RespValue =
+            RespValue::Array(Some(vec![RespValue::BulkString(Some(b"hello".to_vec()))]));
+
+        let mut parser = Parser::new(input);
+        let output = parser.parse_array().unwrap();
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_parser_valid_array_with_multiple_items() {
+        let input = b"*2\r\n$5\r\nhello\r\n$5\r\nworld\r\n".to_vec();
+        let expected: RespValue = RespValue::Array(Some(vec![
+            RespValue::BulkString(Some(b"hello".to_vec())),
+            RespValue::BulkString(Some(b"world".to_vec())),
+        ]));
+
+        let mut parser = Parser::new(input);
+        let output = parser.parse_array().unwrap();
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_parser_empty_array() {
+        let input = b"*0\r\n".to_vec();
+        let expected: RespValue = RespValue::Array(Some(vec![]));
+
+        let mut parser = Parser::new(input);
+        let output = parser.parse_array().unwrap();
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_parser_null_array() {
+        let input = b"*-1\r\n".to_vec();
+        let expected: RespValue = RespValue::Array(None);
+
+        let mut parser = Parser::new(input);
+        let output = parser.parse_array().unwrap();
         assert_eq!(output, expected);
     }
 }
