@@ -1,5 +1,14 @@
 use crate::error::RedisError;
 
+#[derive(Debug, PartialEq)]
+enum RespValue {
+    SimpleString(String),
+    Error(String),
+    Integer(i64),
+    BulkString(Option<Vec<u8>>),
+    Array(Option<Vec<RespValue>>),
+}
+
 pub struct Parser {
     pos: usize,
     input: Vec<u8>,
@@ -14,7 +23,7 @@ impl Parser {
         self.input.get(self.pos).copied()
     }
 
-    fn parse_integer(&mut self) -> Result<i64, RedisError> {
+    fn parse_integer(&mut self) -> Result<RespValue, RedisError> {
         if self.peek() != Some(b':') {
             return Err(RedisError::InvalidInteger(
                 "Invalid format for integer: missing ':'".to_string(),
@@ -65,10 +74,14 @@ impl Parser {
 
         self.pos += 2;
 
-        Ok(if is_negative { -number } else { number })
+        Ok(if is_negative {
+            RespValue::Integer(-number)
+        } else {
+            RespValue::Integer(number)
+        })
     }
 
-    fn parse_simple_string(&mut self) -> Result<String, RedisError> {
+    fn parse_simple_string(&mut self) -> Result<RespValue, RedisError> {
         if self.peek() != Some(b'+') {
             return Err(RedisError::InvalidSimpleString(
                 "Invalid starting token for simple string".to_string(),
@@ -102,7 +115,45 @@ impl Parser {
             .map_err(|e| RedisError::InvalidSimpleString(format!("{}", e)))?
             .to_string();
 
-        Ok(res)
+        Ok(RespValue::SimpleString(res))
+    }
+
+    fn parse_simple_error(&mut self) -> Result<RespValue, RedisError> {
+        if self.peek() != Some(b'-') {
+            return Err(RedisError::InvalidSimpleError(
+                "Invalid starting token for Error".to_string(),
+            ));
+        }
+
+        self.pos += 1;
+
+        let start = self.pos;
+
+        while let Some(byte) = self.peek() {
+            if byte == b'\r' {
+                break;
+            }
+
+            self.pos += 1;
+        }
+
+        if self.input.get(self.pos..self.pos + 2) != Some(b"\r\n") {
+            return Err(RedisError::InvalidSimpleError(
+                "Invalid termination for simple error".to_string(),
+            ));
+        }
+
+        if start == self.pos {
+            return Err(RedisError::InvalidSimpleError(
+                "Empty error string while parsing".to_string(),
+            ));
+        }
+
+        let error: String = std::str::from_utf8(&self.input[start..self.pos])
+            .map_err(|e| RedisError::InvalidSimpleError(format!("{}", e)))?
+            .to_string();
+
+        Ok(RespValue::Error(error))
     }
 }
 
@@ -113,7 +164,7 @@ mod tests {
     #[test]
     fn test_parser_valid_positive_integer() {
         let input = b":1000\r\n".to_vec();
-        let expected: i64 = 1000;
+        let expected: RespValue = RespValue::Integer(1000);
 
         let mut parser = Parser::new(input);
         let output = parser.parse_integer().unwrap();
@@ -123,7 +174,7 @@ mod tests {
     #[test]
     fn test_parser_valid_negative_integer() {
         let input = b":-1000\r\n".to_vec();
-        let expected: i64 = -1000;
+        let expected: RespValue = RespValue::Integer(-1000);
 
         let mut parser = Parser::new(input);
         let output = parser.parse_integer().unwrap();
@@ -133,7 +184,7 @@ mod tests {
     #[test]
     fn test_parser_valid_simple_string() {
         let input = b"+Ok\r\n".to_vec();
-        let expected: String = String::from("Ok");
+        let expected: RespValue = RespValue::SimpleString(String::from("Ok"));
 
         let mut parser = Parser::new(input);
         let output = parser.parse_simple_string().unwrap();
@@ -146,6 +197,24 @@ mod tests {
 
         let mut parser = Parser::new(input);
         let output = parser.parse_simple_string();
+        assert!(output.is_err());
+    }
+
+    #[test]
+    fn test_parser_valid_simple_error() {
+        let input = b"-Error Message\r\n".to_vec();
+        let expected: RespValue = RespValue::Error(String::from("Error Message"));
+
+        let mut parser = Parser::new(input);
+        let output = parser.parse_simple_error().unwrap();
+        assert_eq!(output, expected);
+    }
+    #[test]
+    fn test_parser_invalid_simple_error() {
+        let input = b"-Error Message\n".to_vec();
+
+        let mut parser = Parser::new(input);
+        let output = parser.parse_simple_error();
         assert!(output.is_err());
     }
 }

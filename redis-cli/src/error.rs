@@ -4,6 +4,7 @@ use std::fmt::Display;
 pub enum RedisError {
     InvalidInteger(String),
     InvalidSimpleString(String),
+    InvalidSimpleError(String),
 }
 
 impl Display for RedisError {
@@ -14,6 +15,9 @@ impl Display for RedisError {
             }
             RedisError::InvalidSimpleString(s) => {
                 write!(f, "Unable to parse bulk string: {}", s)
+            }
+            RedisError::InvalidSimpleError(s) => {
+                write!(f, "Unable to parse error: {}", s)
             }
         }
     }
