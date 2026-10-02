@@ -86,7 +86,7 @@ impl Parser {
         let start = self.pos;
 
         while let Some(byte) = self.peek() {
-            if byte == b'\r' {
+            if byte == b'\r' || byte == b'\n' {
                 break;
             }
 
@@ -123,7 +123,7 @@ impl Parser {
         let start = self.pos;
 
         while let Some(byte) = self.peek() {
-            if byte == b'\r' {
+            if byte == b'\r' || byte == b'\n' {
                 break;
             }
 
@@ -272,7 +272,7 @@ impl Parser {
             }
 
             if !byte.is_ascii_digit() {
-                return Err(RedisError::InvalidBulkStringError(
+                return Err(RedisError::InvalidArrayError(
                     "Inavlid token in array length".to_string(),
                 ));
             }
@@ -281,10 +281,10 @@ impl Parser {
         }
 
         self.check_valid_end_of_content_crlf()
-            .map_err(RedisError::InvalidBulkStringError)?;
+            .map_err(RedisError::InvalidArrayError)?;
 
         self.check_empty_bytes_data(&start)
-            .map_err(RedisError::InvalidBulkStringError)?;
+            .map_err(RedisError::InvalidArrayError)?;
 
         let array_length: u64 = std::str::from_utf8(&self.input[start..self.pos])
             .map_err(|e| RedisError::InvalidArrayError(format!("{}", e)))?
