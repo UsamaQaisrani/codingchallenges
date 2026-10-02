@@ -55,17 +55,11 @@ impl Parser {
             self.pos += 1;
         }
 
-        if self.input.get(self.pos..self.pos + 2) != Some(b"\r\n") {
-            return Err(RedisError::InvalidInteger(
-                "Invalid end of integer".to_string(),
-            ));
-        }
+        self.check_valid_end_of_content_crlf()
+            .map_err(RedisError::InvalidInteger)?;
 
-        if self.pos == start {
-            return Err(RedisError::InvalidInteger(
-                "Empty bytes in integer while parsing".to_string(),
-            ));
-        }
+        self.check_empty_bytes_data(&start)
+            .map_err(RedisError::InvalidInteger)?;
 
         let number = std::str::from_utf8(&self.input[start..self.pos])
             .map_err(|e| RedisError::InvalidInteger(format!("{}", e)))?
@@ -99,15 +93,12 @@ impl Parser {
             self.pos += 1;
         }
 
+        self.check_valid_end_of_content_crlf()
+            .map_err(RedisError::InvalidSimpleString)?;
+
         if self.input.get(self.pos..self.pos + 2) != Some(b"\r\n") {
             return Err(RedisError::InvalidSimpleString(
                 "Invalid termination for simple string".to_string(),
-            ));
-        }
-
-        if start == self.pos {
-            return Err(RedisError::InvalidSimpleString(
-                "Empty string while parsing".to_string(),
             ));
         }
 
@@ -139,17 +130,8 @@ impl Parser {
             self.pos += 1;
         }
 
-        if self.input.get(self.pos..self.pos + 2) != Some(b"\r\n") {
-            return Err(RedisError::InvalidSimpleError(
-                "Invalid termination for simple error".to_string(),
-            ));
-        }
-
-        if start == self.pos {
-            return Err(RedisError::InvalidSimpleError(
-                "Empty error string while parsing".to_string(),
-            ));
-        }
+        self.check_valid_end_of_content_crlf()
+            .map_err(RedisError::InvalidSimpleError)?;
 
         let error: String = std::str::from_utf8(&self.input[start..self.pos])
             .map_err(|e| RedisError::InvalidSimpleError(format!("{}", e)))?
@@ -181,11 +163,8 @@ impl Parser {
 
             self.pos += 1;
 
-            if self.input.get(self.pos..self.pos + 2) != Some(b"\r\n") {
-                return Err(RedisError::InvalidBulkStringError(
-                    "Invalid end of null bulk string".to_string(),
-                ));
-            }
+            self.check_valid_end_of_content_crlf()
+                .map_err(RedisError::InvalidBulkStringError)?;
 
             self.pos += 2;
 
@@ -200,14 +179,20 @@ impl Parser {
                 break;
             }
 
+            if !byte.is_ascii_digit() {
+                return Err(RedisError::InvalidBulkStringError(
+                    "Inavlid token in bulk string length".to_string(),
+                ));
+            }
+
             self.pos += 1;
         }
 
-        if self.input.get(self.pos..self.pos + 2) != Some(b"\r\n") {
-            return Err(RedisError::InvalidBulkStringError(
-                "Invalid end of bulk string length, expected CRLF".to_string(),
-            ));
-        }
+        self.check_valid_end_of_content_crlf()
+            .map_err(RedisError::InvalidBulkStringError)?;
+
+        self.check_empty_bytes_data(&start)
+            .map_err(RedisError::InvalidBulkStringError)?;
 
         if start == self.pos {
             return Err(RedisError::InvalidBulkStringError(
@@ -241,11 +226,8 @@ impl Parser {
 
         self.pos = end;
 
-        if self.input.get(self.pos..self.pos + 2) != Some(b"\r\n") {
-            return Err(RedisError::InvalidBulkStringError(
-                "Invalid termination for bulk string".to_string(),
-            ));
-        }
+        self.check_valid_end_of_content_crlf()
+            .map_err(RedisError::InvalidBulkStringError)?;
 
         self.pos += 2;
 
@@ -273,11 +255,8 @@ impl Parser {
 
             self.pos += 1;
 
-            if self.input.get(self.pos..self.pos + 2) != Some(b"\r\n") {
-                return Err(RedisError::InvalidArrayError(
-                    "Invalid end of null array".to_string(),
-                ));
-            }
+            self.check_valid_end_of_content_crlf()
+                .map_err(RedisError::InvalidArrayError)?;
 
             self.pos += 2;
 
@@ -292,20 +271,20 @@ impl Parser {
                 break;
             }
 
+            if !byte.is_ascii_digit() {
+                return Err(RedisError::InvalidBulkStringError(
+                    "Inavlid token in array length".to_string(),
+                ));
+            }
+
             self.pos += 1;
         }
 
-        if self.input.get(self.pos..self.pos + 2) != Some(b"\r\n") {
-            return Err(RedisError::InvalidArrayError(
-                "Invalid end of length for array".to_string(),
-            ));
-        }
+        self.check_valid_end_of_content_crlf()
+            .map_err(RedisError::InvalidBulkStringError)?;
 
-        if start == self.pos {
-            return Err(RedisError::InvalidArrayError(
-                "Empty length for array".to_string(),
-            ));
-        }
+        self.check_empty_bytes_data(&start)
+            .map_err(RedisError::InvalidBulkStringError)?;
 
         let array_length: u64 = std::str::from_utf8(&self.input[start..self.pos])
             .map_err(|e| RedisError::InvalidArrayError(format!("{}", e)))?
@@ -333,6 +312,21 @@ impl Parser {
         }
 
         Ok(RespValue::Array(Some(array)))
+    }
+
+    fn check_valid_end_of_content_crlf(&self) -> Result<(), String> {
+        if self.input.get(self.pos..self.pos + 2) != Some(b"\r\n") {
+            return Err("Invalid end of length for array".to_string());
+        }
+        Ok(())
+    }
+
+    fn check_empty_bytes_data(&self, start: &usize) -> Result<(), String> {
+        if start == &self.pos {
+            return Err("Empty data bytes".to_string());
+        }
+
+        Ok(())
     }
 }
 
