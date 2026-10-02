@@ -5,6 +5,7 @@ pub enum RedisError {
     InvalidInteger(String),
     InvalidSimpleString(String),
     InvalidSimpleError(String),
+    InvalidBulkStringError(String),
 }
 
 impl Display for RedisError {
@@ -18,6 +19,10 @@ impl Display for RedisError {
             }
             RedisError::InvalidSimpleError(s) => {
                 write!(f, "Unable to parse error: {}", s)
+            }
+
+            RedisError::InvalidBulkStringError(s) => {
+                write!(f, "Unable to parse bulk string: {}", s)
             }
         }
     }

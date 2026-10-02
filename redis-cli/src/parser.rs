@@ -153,7 +153,77 @@ impl Parser {
             .map_err(|e| RedisError::InvalidSimpleError(format!("{}", e)))?
             .to_string();
 
+        self.pos += 2;
+
         Ok(RespValue::Error(error))
+    }
+
+    fn parse_bulk_string(&mut self) -> Result<RespValue, RedisError> {
+        if self.peek() != Some(b'$') {
+            return Err(RedisError::InvalidBulkStringError(
+                "Invalid starting token for bulk string".to_string(),
+            ));
+        }
+
+        self.pos += 1;
+
+        // Check Null BulkString
+        if self.peek() == Some(b'-') {
+            self.pos += 1;
+
+            if self.peek() != Some(b'1') {
+                return Err(RedisError::InvalidBulkStringError(
+                    "Invalid length of null bulk string".to_string(),
+                ));
+            }
+
+            self.pos += 1;
+
+            if self.input.get(self.pos..self.pos + 2) != Some(b"\r\n") {
+                return Err(RedisError::InvalidBulkStringError(
+                    "Invalid end of null bulk string".to_string(),
+                ));
+            }
+
+            self.pos += 2;
+
+            return Ok(RespValue::BulkString(None));
+        }
+
+        let start = self.pos;
+
+        // Get length of BulkString
+        while let Some(byte) = self.peek() {
+            if byte == b'\r' {
+                break;
+            }
+
+            self.pos += 1;
+        }
+
+        if self.input.get(self.pos..self.pos + 2) != Some(b"\r\n") {
+            return Err(RedisError::InvalidBulkStringError(
+                "Invalid end of bulk string length, expected CRLF".to_string(),
+            ));
+        }
+
+        if start == self.pos {
+            return Err(RedisError::InvalidBulkStringError(
+                "Empty length of bulk string".to_string(),
+            ));
+        }
+
+        let length = std::str::from_utf8(&self.input[start..self.pos])
+            .map_err(|e| RedisError::InvalidBulkStringError(format!("{}", e)))?
+            .parse::<usize>()
+            .map_err(|e| RedisError::InvalidBulkStringError(format!("{}", e)))?;
+
+        self.pos += 2;
+
+        let end = self.pos + length;
+        let res: Vec<u8> = self.input[self.pos..end].to_vec();
+
+        Ok(RespValue::BulkString(Some(res)))
     }
 }
 
@@ -216,5 +286,35 @@ mod tests {
         let mut parser = Parser::new(input);
         let output = parser.parse_simple_error();
         assert!(output.is_err());
+    }
+
+    #[test]
+    fn test_parser_valid_bulk_string() {
+        let input = b"$5\r\nhello\r\n".to_vec();
+        let expected: RespValue = RespValue::BulkString(Some(b"hello".to_vec()));
+
+        let mut parser = Parser::new(input);
+        let output = parser.parse_bulk_string().unwrap();
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_parser_null_bulk_string() {
+        let input = b"$-1\r\n".to_vec();
+        let expected: RespValue = RespValue::BulkString(None);
+
+        let mut parser = Parser::new(input);
+        let output = parser.parse_bulk_string().unwrap();
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_parse_empty_bulk_string() {
+        let input = b"$0\r\n\r\n".to_vec();
+        let expected: RespValue = RespValue::BulkString(Some(b"".to_vec()));
+
+        let mut parser = Parser::new(input);
+        let output = parser.parse_bulk_string().unwrap();
+        assert_eq!(output, expected);
     }
 }
