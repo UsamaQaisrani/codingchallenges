@@ -1,7 +1,7 @@
 use crate::error::RedisError;
 
 #[derive(Debug, PartialEq)]
-enum RespValue {
+pub enum RespValue {
     SimpleString(String),
     Error(String),
     Integer(i64),
