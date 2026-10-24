@@ -13,7 +13,7 @@ impl Encoder {
     pub fn encode(&self) -> Result<Vec<u8>, RedisError> {
         let val = match &self.input {
             RespValue::SimpleString(s) => Self::encode_simple_string(s)?,
-            RespValue::Integer(n) => Self::encode_integer(*n)?,
+            RespValue::Integer(n) => Self::encode_integer(*n),
             _ => {
                 return Err(RedisError::InvalidType);
             }
@@ -34,12 +34,30 @@ impl Encoder {
         Ok(buf)
     }
 
-    fn encode_integer(num: i64) -> Result<Vec<u8>, RedisError> {
+    fn encode_integer(num: i64) -> Vec<u8> {
         let mut buf: Vec<u8> = Vec::new();
         buf.push(b':');
         buf.extend_from_slice(num.to_string().as_bytes());
         buf.extend_from_slice(b"\r\n");
-        Ok(buf)
+        buf
+    }
+
+    fn encode_bulk_string(message: Option<Vec<u8>>) -> Vec<u8> {
+        match message {
+            None => b"$-1\r\n".to_vec(),
+            Some(message) => {
+                let length = message.len();
+                let mut buf: Vec<u8> = Vec::new();
+
+                buf.push(b'$');
+                buf.extend_from_slice(length.to_string().as_bytes());
+                buf.extend_from_slice(b"\r\n");
+                buf.extend_from_slice(&message);
+                buf.extend_from_slice(b"\r\n");
+
+                buf
+            }
+        }
     }
 }
 
@@ -89,7 +107,7 @@ mod tests {
     #[test]
     fn test_encode_integer_positive_has_no_sign() {
         let input = 1000;
-        let output = Encoder::encode_integer(input).unwrap();
+        let output = Encoder::encode_integer(input);
         let expected = b":1000\r\n";
         assert_eq!(output, expected);
     }
@@ -97,7 +115,7 @@ mod tests {
     #[test]
     fn test_encode_integer_negative() {
         let input = -1000;
-        let output = Encoder::encode_integer(input).unwrap();
+        let output = Encoder::encode_integer(input);
         let expected = b":-1000\r\n";
         assert_eq!(output, expected);
     }
@@ -105,7 +123,7 @@ mod tests {
     #[test]
     fn test_encode_integer_zero() {
         let input = 0;
-        let output = Encoder::encode_integer(input).unwrap();
+        let output = Encoder::encode_integer(input);
         let expected = b":0\r\n";
         assert_eq!(output, expected);
     }
@@ -113,8 +131,32 @@ mod tests {
     #[test]
     fn test_encode_integer_i64_min() {
         let input = i64::MIN;
-        let output = Encoder::encode_integer(input).unwrap();
+        let output = Encoder::encode_integer(input);
         let expected = b":-9223372036854775808\r\n";
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_encode_bulk_string_ok() {
+        let input = b"hello".to_vec();
+        let output = Encoder::encode_bulk_string(Some(input));
+        let expected = b"$5\r\nhello\r\n";
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_encode_bulk_string_empty() {
+        let input = b"".to_vec();
+        let output = Encoder::encode_bulk_string(Some(input));
+        let expected = b"$0\r\n\r\n";
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_encode_bulk_string_contains_crlf() {
+        let input = b"\r\n".to_vec();
+        let output = Encoder::encode_bulk_string(Some(input));
+        let expected = b"$2\r\n\r\n\r\n";
         assert_eq!(output, expected);
     }
 }
