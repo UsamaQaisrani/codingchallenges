@@ -14,6 +14,8 @@ impl Encoder {
         let val = match &self.input {
             RespValue::SimpleString(s) => Self::encode_simple_string(s)?,
             RespValue::Integer(n) => Self::encode_integer(*n),
+            RespValue::BulkString(s) => Self::encode_bulk_string(s),
+            RespValue::Error(e) => Self::encode_simple_error(e)?,
             _ => {
                 return Err(RedisError::InvalidType);
             }
@@ -24,7 +26,7 @@ impl Encoder {
     fn encode_simple_string(message: &str) -> Result<Vec<u8>, RedisError> {
         if message.contains("\r") || message.contains("\n") {
             return Err(RedisError::InvalidSimpleString(
-                "Simple string cannot contain CRLF".into(),
+                "Simple string cannot contain only CR or LF".into(),
             ));
         }
         let mut buf: Vec<u8> = Vec::new();
@@ -42,7 +44,7 @@ impl Encoder {
         buf
     }
 
-    fn encode_bulk_string(message: Option<Vec<u8>>) -> Vec<u8> {
+    fn encode_bulk_string(message: &Option<Vec<u8>>) -> Vec<u8> {
         match message {
             None => b"$-1\r\n".to_vec(),
             Some(message) => {
@@ -52,12 +54,25 @@ impl Encoder {
                 buf.push(b'$');
                 buf.extend_from_slice(length.to_string().as_bytes());
                 buf.extend_from_slice(b"\r\n");
-                buf.extend_from_slice(&message);
+                buf.extend_from_slice(message);
                 buf.extend_from_slice(b"\r\n");
 
                 buf
             }
         }
+    }
+
+    fn encode_simple_error(message: &str) -> Result<Vec<u8>, RedisError> {
+        if message.contains("\r") || message.contains("\n") {
+            return Err(RedisError::InvalidSimpleError(
+                "Simple error cannot contain only CR or LF".into(),
+            ));
+        }
+        let mut buf: Vec<u8> = Vec::new();
+        buf.push(b'-');
+        buf.extend_from_slice(message.as_bytes());
+        buf.extend_from_slice(b"\r\n");
+        Ok(buf)
     }
 }
 
@@ -86,14 +101,14 @@ mod tests {
     fn test_encode_simple_string_rejects_cr() {
         let input = "\r";
         let output = Encoder::encode_simple_string(input).unwrap_err();
-        assert!(output.to_string().contains("CRLF"));
+        assert!(output.to_string().contains("CR"));
     }
 
     #[test]
     fn test_encode_simple_string_rejects_lf() {
         let input = "\n";
         let output = Encoder::encode_simple_string(input).unwrap_err();
-        assert!(output.to_string().contains("CRLF"));
+        assert!(output.to_string().contains("LF"));
     }
 
     #[test]
@@ -139,7 +154,7 @@ mod tests {
     #[test]
     fn test_encode_bulk_string_ok() {
         let input = b"hello".to_vec();
-        let output = Encoder::encode_bulk_string(Some(input));
+        let output = Encoder::encode_bulk_string(&Some(input));
         let expected = b"$5\r\nhello\r\n";
         assert_eq!(output, expected);
     }
@@ -147,7 +162,7 @@ mod tests {
     #[test]
     fn test_encode_bulk_string_empty() {
         let input = b"".to_vec();
-        let output = Encoder::encode_bulk_string(Some(input));
+        let output = Encoder::encode_bulk_string(&Some(input));
         let expected = b"$0\r\n\r\n";
         assert_eq!(output, expected);
     }
@@ -155,8 +170,38 @@ mod tests {
     #[test]
     fn test_encode_bulk_string_contains_crlf() {
         let input = b"\r\n".to_vec();
-        let output = Encoder::encode_bulk_string(Some(input));
+        let output = Encoder::encode_bulk_string(&Some(input));
         let expected = b"$2\r\n\r\n\r\n";
         assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_encode_simple_error_ok() {
+        let input = "Error message";
+        let output = Encoder::encode_simple_error(input).unwrap();
+        let expected = b"-Error message\r\n";
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_encode_simple_error_empty() {
+        let input = "";
+        let output = Encoder::encode_simple_error(input).unwrap();
+        let expected = b"-\r\n";
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_encode_simple_error_rejects_cr() {
+        let input = "\r";
+        let output = Encoder::encode_simple_error(input).unwrap_err();
+        assert!(output.to_string().contains("CR"));
+    }
+
+    #[test]
+    fn test_encode_simple_error_rejects_lf() {
+        let input = "\n";
+        let output = Encoder::encode_simple_error(input).unwrap_err();
+        assert!(output.to_string().contains("LF"));
     }
 }
