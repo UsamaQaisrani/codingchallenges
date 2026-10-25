@@ -1,6 +1,6 @@
 use crate::error::RedisError;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum RespValue {
     SimpleString(String),
     Error(String),
