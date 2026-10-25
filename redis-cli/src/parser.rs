@@ -67,8 +67,7 @@ impl Parser {
             self.pos += 1;
         }
 
-        self.check_valid_end_of_content_crlf()
-            .map_err(RedisError::InvalidInteger)?;
+        self.check_valid_end_of_content_crlf(RedisError::InvalidInteger)?;
 
         self.check_empty_bytes_data(&start)
             .map_err(RedisError::InvalidInteger)?;
@@ -105,14 +104,7 @@ impl Parser {
             self.pos += 1;
         }
 
-        self.check_valid_end_of_content_crlf()
-            .map_err(RedisError::InvalidSimpleString)?;
-
-        if self.input.get(self.pos..self.pos + 2) != Some(b"\r\n") {
-            return Err(RedisError::InvalidSimpleString(
-                "Invalid termination for simple string".to_string(),
-            ));
-        }
+        self.check_valid_end_of_content_crlf(RedisError::InvalidSimpleString)?;
 
         let res: String = std::str::from_utf8(&self.input[start..self.pos])
             .map_err(|e| RedisError::InvalidSimpleString(format!("{}", e)))?
@@ -142,8 +134,7 @@ impl Parser {
             self.pos += 1;
         }
 
-        self.check_valid_end_of_content_crlf()
-            .map_err(RedisError::InvalidSimpleError)?;
+        self.check_valid_end_of_content_crlf(RedisError::InvalidSimpleError)?;
 
         let error: String = std::str::from_utf8(&self.input[start..self.pos])
             .map_err(|e| RedisError::InvalidSimpleError(format!("{}", e)))?
@@ -175,8 +166,7 @@ impl Parser {
 
             self.pos += 1;
 
-            self.check_valid_end_of_content_crlf()
-                .map_err(RedisError::InvalidBulkStringError)?;
+            self.check_valid_end_of_content_crlf(RedisError::InvalidBulkStringError)?;
 
             self.pos += 2;
 
@@ -200,8 +190,7 @@ impl Parser {
             self.pos += 1;
         }
 
-        self.check_valid_end_of_content_crlf()
-            .map_err(RedisError::InvalidBulkStringError)?;
+        self.check_valid_end_of_content_crlf(RedisError::InvalidBulkStringError)?;
 
         self.check_empty_bytes_data(&start)
             .map_err(RedisError::InvalidBulkStringError)?;
@@ -238,8 +227,7 @@ impl Parser {
 
         self.pos = end;
 
-        self.check_valid_end_of_content_crlf()
-            .map_err(RedisError::InvalidBulkStringError)?;
+        self.check_valid_end_of_content_crlf(RedisError::InvalidBulkStringError)?;
 
         self.pos += 2;
 
@@ -267,8 +255,7 @@ impl Parser {
 
             self.pos += 1;
 
-            self.check_valid_end_of_content_crlf()
-                .map_err(RedisError::InvalidArrayError)?;
+            self.check_valid_end_of_content_crlf(RedisError::InvalidArrayError)?;
 
             self.pos += 2;
 
@@ -292,8 +279,7 @@ impl Parser {
             self.pos += 1;
         }
 
-        self.check_valid_end_of_content_crlf()
-            .map_err(RedisError::InvalidArrayError)?;
+        self.check_valid_end_of_content_crlf(RedisError::InvalidArrayError)?;
 
         self.check_empty_bytes_data(&start)
             .map_err(RedisError::InvalidArrayError)?;
@@ -315,11 +301,18 @@ impl Parser {
         Ok(RespValue::Array(Some(array)))
     }
 
-    fn check_valid_end_of_content_crlf(&self) -> Result<(), String> {
-        if self.input.get(self.pos..self.pos + 2) != Some(b"\r\n") {
-            return Err("Invalid end of length for array".to_string());
+    fn check_valid_end_of_content_crlf(
+        &self,
+        invalid: fn(String) -> RedisError,
+    ) -> Result<(), RedisError> {
+        let rest = self.input.get(self.pos..).unwrap_or(&[]);
+
+        match rest {
+            [] => Err(RedisError::Incomplete),
+            [b'\r'] => Err(RedisError::Incomplete),
+            [b'\r', b'\n', ..] => Ok(()),
+            _ => Err(invalid("Expected CRLF".to_string())),
         }
-        Ok(())
     }
 
     fn check_empty_bytes_data(&self, start: &usize) -> Result<(), String> {
@@ -470,6 +463,41 @@ mod tests {
     fn test_parser_empty_input_is_incomplete() {
         let mut parser = Parser::new(Vec::new());
         let output = parser.parse().unwrap_err();
+        assert_eq!(output, RedisError::Incomplete);
+    }
+
+    #[test]
+    fn test_parser_simple_string_missing_crlf_is_incomplete() {
+        let input = b"+Ok".to_vec();
+        let mut parser = Parser::new(input);
+        let output = parser.parse_simple_string().unwrap_err();
+        assert_eq!(output, RedisError::Incomplete);
+    }
+
+    #[test]
+    fn test_parser_simple_string_missing_lf_is_incomplete() {
+        let input = b"+Ok\r".to_vec();
+        let mut parser = Parser::new(input);
+        let output = parser.parse_simple_string().unwrap_err();
+        assert_eq!(output, RedisError::Incomplete);
+    }
+
+    #[test]
+    fn test_parser_simple_string_wrong_byte_after_cr_is_invalid() {
+        let input = b"+Ok\rX".to_vec();
+        let mut parser = Parser::new(input);
+        let output = parser.parse_simple_string().unwrap_err();
+        assert_eq!(
+            output,
+            RedisError::InvalidSimpleString("Expected CRLF".into())
+        );
+    }
+
+    #[test]
+    fn test_parser_integer_missing_crlf_is_incomplete() {
+        let input = b":1000".to_vec();
+        let mut parser = Parser::new(input);
+        let output = parser.parse_integer().unwrap_err();
         assert_eq!(output, RedisError::Incomplete);
     }
 }
