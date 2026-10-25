@@ -19,6 +19,18 @@ impl Parser {
         Self { pos: 0, input }
     }
 
+    pub fn parse(&mut self) -> Result<RespValue, RedisError> {
+        match self.peek() {
+            Some(b'+') => self.parse_simple_string(),
+            Some(b'-') => self.parse_simple_error(),
+            Some(b':') => self.parse_integer(),
+            Some(b'$') => self.parse_bulk_string(),
+            Some(b'*') => self.parse_array(),
+            Some(_) => Err(RedisError::InvalidType),
+            None => Err(RedisError::InvalidType),
+        }
+    }
+
     fn peek(&self) -> Option<u8> {
         self.input.get(self.pos).copied()
     }
