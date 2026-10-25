@@ -1,17 +1,11 @@
 use crate::error::RedisError;
 use crate::parser::RespValue;
 
-pub struct Encoder {
-    input: RespValue,
-}
+pub struct Encoder;
 
 impl Encoder {
-    pub fn new(input: RespValue) -> Self {
-        Encoder { input }
-    }
-
-    pub fn encode(&self) -> Result<Vec<u8>, RedisError> {
-        let val = match &self.input {
+    pub fn encode(input: &RespValue) -> Result<Vec<u8>, RedisError> {
+        let val = match input {
             RespValue::SimpleString(s) => Self::encode_simple_string(s)?,
             RespValue::Integer(n) => Self::encode_integer(*n),
             RespValue::BulkString(s) => Self::encode_bulk_string(s),
@@ -82,8 +76,7 @@ impl Encoder {
                 buf.extend_from_slice(list.len().to_string().as_bytes());
                 buf.extend_from_slice(b"\r\n");
                 for item in list {
-                    let encoder = Encoder::new(item.clone());
-                    let encoded_item = encoder.encode()?;
+                    let encoded_item = Encoder::encode(item)?;
                     buf.extend_from_slice(&encoded_item);
                 }
 
