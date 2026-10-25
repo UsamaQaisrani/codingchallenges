@@ -308,18 +308,7 @@ impl Parser {
         let mut array: Vec<RespValue> = Vec::new();
 
         for _ in 0..array_length {
-            let res = match self.peek() {
-                Some(b'+') => self.parse_simple_string()?,
-                Some(b'-') => self.parse_simple_error()?,
-                Some(b':') => self.parse_integer()?,
-                Some(b'$') => self.parse_bulk_string()?,
-                Some(b'*') => self.parse_array()?,
-                _ => {
-                    return Err(RedisError::InvalidArrayError(
-                        "Invalid token found in array item".to_string(),
-                    ));
-                }
-            };
+            let res = self.parse()?;
             array.push(res);
         }
 
