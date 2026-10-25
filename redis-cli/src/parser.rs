@@ -27,7 +27,7 @@ impl Parser {
             Some(b'$') => self.parse_bulk_string(),
             Some(b'*') => self.parse_array(),
             Some(_) => Err(RedisError::InvalidType),
-            None => Err(RedisError::InvalidType),
+            None => Err(RedisError::Incomplete),
         }
     }
 
@@ -464,5 +464,12 @@ mod tests {
         let mut parser = Parser::new(input);
         let output = parser.parse_array().unwrap();
         assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_parser_empty_input_is_incomplete() {
+        let mut parser = Parser::new(Vec::new());
+        let output = parser.parse().unwrap_err();
+        assert_eq!(output, RedisError::Incomplete);
     }
 }

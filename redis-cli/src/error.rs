@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum RedisError {
     InvalidInteger(String),
     InvalidSimpleString(String),
@@ -8,6 +8,7 @@ pub enum RedisError {
     InvalidBulkStringError(String),
     InvalidArrayError(String),
     InvalidType,
+    Incomplete,
 }
 
 impl Display for RedisError {
@@ -35,6 +36,9 @@ impl Display for RedisError {
 
             RedisError::InvalidType => {
                 write!(f, "Invalid token type")
+            }
+            RedisError::Incomplete => {
+                write!(f, "Need more data")
             }
         }
     }
