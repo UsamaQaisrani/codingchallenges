@@ -11,7 +11,10 @@ pub struct Registry {
 impl Registry {
     pub fn new() -> Self {
         Registry {
-            handlers: HashMap::from([("PING".to_string(), ping as Handler)]),
+            handlers: HashMap::from([
+                ("PING".to_string(), ping as Handler),
+                ("ECHO".to_string(), echo as Handler),
+            ]),
         }
     }
 
@@ -47,6 +50,14 @@ impl Registry {
 
 fn ping(_args: &[Vec<u8>]) -> RespValue {
     RespValue::SimpleString("PONG".to_string())
+}
+
+fn echo(args: &[Vec<u8>]) -> RespValue {
+    if args.len() != 1 {
+        return RespValue::Error("ERR wrong number of arguments for 'echo' command".into());
+    }
+
+    RespValue::BulkString(Some(args[0].clone()))
 }
 
 #[cfg(test)]
