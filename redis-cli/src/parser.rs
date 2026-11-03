@@ -158,10 +158,16 @@ impl Parser {
         if self.peek() == Some(b'-') {
             self.pos += 1;
 
-            if self.peek() != Some(b'1') {
-                return Err(RedisError::InvalidBulkStringError(
-                    "Invalid length of null bulk string".to_string(),
-                ));
+            match self.peek() {
+                Some(b'1') => {}
+                None => {
+                    return Err(RedisError::Incomplete);
+                }
+                Some(_) => {
+                    return Err(RedisError::InvalidBulkStringError(
+                        "Invalid length of null bulk string".to_string(),
+                    ));
+                }
             }
 
             self.pos += 1;
@@ -218,9 +224,7 @@ impl Parser {
         };
 
         if self.input.get(self.pos..end).is_none() {
-            return Err(RedisError::InvalidBulkStringError(
-                "Bulk string is shorter than declared length".to_string(),
-            ));
+            return Err(RedisError::Incomplete);
         }
 
         let res = self.input[self.pos..end].to_vec();
@@ -247,10 +251,16 @@ impl Parser {
         if self.peek() == Some(b'-') {
             self.pos += 1;
 
-            if self.peek() != Some(b'1') {
-                return Err(RedisError::InvalidArrayError(
-                    "Invalid length of null array".to_string(),
-                ));
+            match self.peek() {
+                Some(b'1') => {}
+                None => {
+                    return Err(RedisError::Incomplete);
+                }
+                Some(_) => {
+                    return Err(RedisError::InvalidArrayError(
+                        "Invalid length of null array".to_string(),
+                    ));
+                }
             }
 
             self.pos += 1;
@@ -321,6 +331,10 @@ impl Parser {
         }
 
         Ok(())
+    }
+
+    pub fn consumed(&self) -> usize {
+        self.pos
     }
 }
 
@@ -499,5 +513,13 @@ mod tests {
         let mut parser = Parser::new(input);
         let output = parser.parse_integer().unwrap_err();
         assert_eq!(output, RedisError::Incomplete);
+    }
+
+    #[test]
+    fn test_consumed_bytes_valid() {
+        let input = b"+OK\r\n+PONG\r\n".to_vec();
+        let mut parser = Parser::new(input);
+        let _ = parser.parse();
+        assert_eq!(parser.consumed(), 5);
     }
 }
